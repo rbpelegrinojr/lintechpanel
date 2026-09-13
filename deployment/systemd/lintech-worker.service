@@ -1,6 +1,7 @@
 [Unit]
 Description=LinTech Panel Worker
-After=lintech-api.service
+Requires=lintech-agent.service
+After=lintech-api.service lintech-agent.service
 
 [Service]
 User=lintech
