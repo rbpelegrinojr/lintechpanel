@@ -7,7 +7,7 @@ User=lintech
 Group=lintech
 WorkingDirectory=/opt/lintech-panel
 EnvironmentFile=/etc/lintech-panel/panel.env
-ExecStart=/usr/bin/node /opt/lintech-panel/backend/src/server.js
+ExecStart=/usr/bin/node --jitless /opt/lintech-panel/backend/src/server.js
 Restart=on-failure
 NoNewPrivileges=true
 PrivateTmp=true
@@ -20,4 +20,3 @@ MemoryDenyWriteExecute=true
 
 [Install]
 WantedBy=multi-user.target
-

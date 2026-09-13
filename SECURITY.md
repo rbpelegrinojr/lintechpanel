@@ -10,9 +10,10 @@
 - CSP, clickjacking, MIME-sniffing, referrer, and permissions headers; customer-facing 500 responses omit stack traces.
 - Non-login service user, restrictive file modes, systemd sandboxing, UFW public ports limited to SSH/HTTP/HTTPS.
 
+The Node.js API runs with V8's `--jitless` option so systemd's `MemoryDenyWriteExecute` protection remains compatible with the runtime. This reduces API execution performance but avoids executable JIT memory in the public control-plane service. The service also retains `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem`, `ProtectHome`, `RestrictSUIDSGID`, and `LockPersonality`.
+
 ## Threat model and residual risk
 
 Primary threats are credential stuffing, broken object authorization, malicious tenant code, path/symlink/archive traversal, command injection, dependency compromise, resource exhaustion, secret/log leakage, SSRF, WebSocket hijacking, and privileged-agent abuse. Critical production gaps remain: persistent/distributed throttling, TOTP and recovery codes, secret encryption, complete audit hash chaining, API token scopes/idempotency, per-tenant cgroups/quotas/AppArmor, malware scanning, websocket terminal isolation, database grants, backup restoration tests, and a Linux adversarial test environment.
 
 Do not expose version 0.1.0 to untrusted tenants. Report vulnerabilities privately to the repository owner; include reproduction, impact, and affected version, but never include live credentials or customer data.
-
