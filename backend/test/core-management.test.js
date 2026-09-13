@@ -99,5 +99,11 @@ test('domain lifecycle queues scoped privileged jobs and prevents overlap', asyn
   const disabled = await f.app({ method: 'POST', pathname: `/api/domains/${record.id}/disable`, headers: headers(outsider), body: {} });
   assert.equal(disabled.status, 202);
   assert.equal(f.store.data.jobs.at(-1).type, 'disable_domain');
+  record.status = 'active'; record.enabled = true;
+  const ssl = await f.app({ method: 'POST', pathname: `/api/domains/${record.id}/ssl`, headers: headers(outsider), body: { forceHttps: true } });
+  assert.equal(ssl.status, 202);
+  assert.equal(f.store.data.jobs.at(-1).type, 'issue_ssl');
+  assert.equal(f.store.data.jobs.at(-1).input.forceHttps, true);
+  assert.equal(f.store.data.jobs.at(-1).input.email, 'admin@example.com');
   await fs.rm(f.dir, { recursive: true });
 });

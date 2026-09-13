@@ -18,12 +18,15 @@ async function processOne() {
   });
   if (!job) return false;
   let failure = null;
+  let operationResult = null;
   try {
     if (job.type === 'provision_user') {
       await callAgent('create_user', { username: job.input.username });
       await callAgent('create_customer_dirs', { userId: job.input.userId, username: job.input.username });
     } else if (['create_domain', 'delete_domain', 'enable_domain', 'disable_domain'].includes(job.type)) {
-      await callAgent(job.type, job.input);
+      operationResult = await callAgent(job.type, job.input);
+    } else if (job.type === 'issue_ssl') {
+      operationResult = await callAgent('issue_ssl', { ...job.input, email: process.env.LINTECH_ACME_EMAIL || job.input.email }, { timeoutMs: 120_000 });
     } else {
       throw new Error('runner is unavailable in this release');
     }
@@ -45,6 +48,10 @@ async function processOne() {
       const domain = store.data.domains.find(item => item.id === job.resourceId);
       if (domain && failure) { domain.status = 'error'; domain.error = failure.message; }
       else if (domain) { domain.status = job.type === 'disable_domain' ? 'disabled' : 'active'; domain.enabled = job.type !== 'disable_domain'; delete domain.error; }
+    } else if (job.type === 'issue_ssl') {
+      const domain = store.data.domains.find(item => item.id === job.resourceId);
+      if (domain && failure) { domain.ssl = 'error'; domain.sslError = failure.message; }
+      else if (domain) { domain.ssl = 'active'; domain.forceHttps = operationResult.forceHttps; domain.sslExpiresAt = operationResult.expiresAt; delete domain.sslError; }
     }
     await store.save();
   });

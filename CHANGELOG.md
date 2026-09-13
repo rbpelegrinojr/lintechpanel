@@ -9,7 +9,8 @@ Phase: transactional static-domain provisioning milestone.
 - Added customer-facing domain lifecycle controls and rejected overlapping operations.
 - Added a cross-process state-file lock and reload-before-mutation protocol so API and worker writes do not silently overwrite each other while the PostgreSQL repository remains pending.
 - Corrected agent-socket group access in systemd and added tests for Nginx input safety, signed agent requests, domain job scoping, and concurrent state updates.
-- Validation: `npm run lint` passed; `npm test` passed 19 tests. Real privileged Nginx activation still requires disposable Ubuntu validation.
+- Validation: `npm run lint` passed; `npm test` passed 21 tests. Real privileged Nginx activation still requires disposable Ubuntu validation.
+- Added allowlisted Certbot webroot issuance/renewal, generated TLS 1.2/1.3 configuration, optional forced HTTPS (enabled by the UI), certificate-expiration state, and an Nginx reload deployment hook for automatic renewals. Real ACME issuance for customer domains remains externally unvalidated.
 
 ## 0.2.0 — 2026-09-13
 

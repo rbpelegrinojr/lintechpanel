@@ -139,14 +139,20 @@ async function domainsView() {
       showNotice(`Domain ${action} queued.`); await domainsView();
     } catch (error) { showNotice(error.message, true); }
   };
+  const issueSsl = async item => {
+    try { await api(`/domains/${item.id}/ssl`, { method: 'POST', body: JSON.stringify({ forceHttps: true }) }); showNotice('SSL issuance queued with HTTPS redirect.'); await domainsView(); }
+    catch (error) { showNotice(error.message, true); }
+  };
   const table = domains.length ? node('div', { class: 'table-wrap' }, node('table', {}, node('thead', {}, node('tr', {}, ['Domain', 'Type', 'Status', 'SSL', 'Created', 'Actions'].map(label => node('th', {}, label)))), node('tbody', {}, domains.map(item => {
     const busy = ['queued', 'deleting'].includes(item.status);
+    const sslBusy = item.ssl === 'queued';
     const status = item.status || (item.enabled ? 'active' : 'disabled');
     return node('tr', {},
       node('td', { class: 'code' }, item.name), node('td', {}, item.type), node('td', {}, badge(status, status === 'active')),
       node('td', {}, badge(item.ssl, item.ssl === 'active')), node('td', {}, date(item.createdAt)),
       node('td', { class: 'actions' },
         node('button', { class: 'ghost', type: 'button', disabled: busy ? true : null, onclick: () => act(item, item.enabled ? 'disable' : 'enable') }, item.enabled ? 'Disable' : 'Enable'),
+        node('button', { class: 'ghost', type: 'button', disabled: busy || sslBusy || item.status !== 'active' ? true : null, title: item.sslExpiresAt ? `Expires ${date(item.sslExpiresAt)}` : null, onclick: () => issueSsl(item) }, item.ssl === 'active' ? 'Renew SSL' : 'Issue SSL'),
         node('button', { class: 'danger', type: 'button', disabled: busy ? true : null, onclick: () => act(item, 'delete') }, 'Delete')));
   })))) : empty('No domains yet.');
   content.replaceChildren(panel('Add domain', form), node('br'), panel('Domains', table));

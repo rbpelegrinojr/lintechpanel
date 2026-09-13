@@ -258,6 +258,22 @@ export function createApplication(store, options = {}) {
       store.audit(actor.id, 'domain.delete_requested', record.id); await store.save();
       return json(202, record);
     }
+    const sslAction = pathname.match(/^\/api\/domains\/([^/]+)\/ssl$/);
+    if (sslAction && method === 'POST') {
+      const record = store.data.domains.find(item => item.id === sslAction[1]);
+      if (!record) throw new NotFoundError();
+      requireOwner(actor, record);
+      if (record.status !== 'active') throw new InputError('domain must be active before issuing SSL');
+      if (store.data.jobs.some(item => item.resourceId === record.id && item.type === 'issue_ssl' && ['queued', 'running'].includes(item.status))) throw new InputError('SSL operation already in progress');
+      const owner = store.data.users.find(item => item.id === record.ownerId);
+      if (!owner) throw new NotFoundError('owner not found');
+      const acmeEmail = store.data.users.find(item => item.role === ROLES.SUPER_ADMIN)?.email;
+      if (!acmeEmail) throw new InputError('administrator email is required for SSL issuance');
+      record.ssl = 'queued';
+      enqueue(record.ownerId, 'issue_ssl', { siteId: record.id, domain: record.name, username: owner.systemUsername || owner.username, email: acmeEmail, forceHttps: body.forceHttps !== false }, record.id, record.resellerId);
+      store.audit(actor.id, 'domain.ssl_requested', record.id); await store.save();
+      return json(202, record);
+    }
 
     if (method === 'POST' && pathname === '/api/jobs') {
       const allowed = ['deploy_php', 'deploy_python', 'deploy_node', 'deploy_static', 'issue_ssl', 'backup', 'restore', 'git_pull'];

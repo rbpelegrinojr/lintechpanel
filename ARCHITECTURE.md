@@ -37,6 +37,6 @@ Ubuntu 24.04 uses Nginx, three systemd services, `/opt/lintech-panel` read-only 
 
 ## Nginx configuration transaction
 
-Static-site configuration is emitted from an owned template to a temporary file, atomically activated, syntax checked with `nginx -t`, reloaded, and rolled back if validation or reload fails. Existing activation paths are accepted only when they are symlinks to the expected panel-owned file. Raw customer Nginx text is never accepted. Redirect, reverse-proxy, subdomain, and TLS templates remain outstanding.
+Static-site configuration is emitted from an owned template to a temporary file, atomically activated, syntax checked with `nginx -t`, reloaded, and rolled back if validation or reload fails. Existing activation paths are accepted only when they are symlinks to the expected panel-owned file. Raw customer Nginx text is never accepted. The SSL job uses Certbot webroot mode with validated fixed arguments, then activates a generated TLS template and records expiration; the Certbot deploy hook validates and reloads Nginx after renewal. Redirect, reverse-proxy, and explicit subdomain workflows remain outstanding, and real ACME issuance is externally unvalidated.
 
 The JSON development store now uses an exclusive cross-process lock plus reload-before-mutation in the API and worker, preventing lost updates between those services. This is a reliability bridge, not the selected production database: PostgreSQL migrations, transactional claiming, persistent throttling, indexing, and operational backup are still required before production.

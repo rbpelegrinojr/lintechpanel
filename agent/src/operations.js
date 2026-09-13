@@ -5,6 +5,7 @@ import { renderStaticSite, sitePaths, validateSite } from './nginx.js';
 
 const USER = /^[a-z][a-z0-9_-]{2,31}$/;
 const ID = /^[a-z][a-z0-9_-]{2,63}$/;
+const EMAIL = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9.-]{0,188}[A-Za-z0-9])?$/;
 
 function assert(value, pattern, label) { if (typeof value !== 'string' || !pattern.test(value)) throw new Error(`invalid ${label}`); return value; }
 function run(binary, args, options = {}) {
@@ -41,6 +42,7 @@ export const schemas = Object.freeze({
   delete_domain: args => validateSite(args),
   enable_domain: args => validateSite(args),
   disable_domain: args => validateSite(args),
+  issue_ssl: args => ({ ...validateSite(args), email: assert(args.email, EMAIL, 'email'), forceHttps: args.forceHttps !== false }),
   nginx_test_reload: args => ({ siteId: assert(args.siteId, ID, 'site id') })
 });
 
@@ -101,6 +103,23 @@ export async function executeOperation(operation, rawArgs, config = {}) {
     try { await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']); }
     catch (error) { if (activationCreated) await fs.rm(locations.enabled, { force: true }); throw error; }
     return { active: true };
+  }
+  if (operation === 'issue_ssl') {
+    const locations = sitePaths(args, config.nginxRoot);
+    const documentRoot = path.join('/home', args.username, 'websites', args.domain, 'public');
+    await fs.access(locations.enabled);
+    await run('/usr/bin/certbot', ['certonly', '--webroot', '--webroot-path', documentRoot, '--domain', args.domain, '--non-interactive', '--agree-tos', '--email', args.email, '--keep-until-expiring']);
+    const previous = await fs.readFile(locations.available, 'utf8');
+    const temporary = `${locations.available}.${process.pid}.tmp`;
+    await fs.writeFile(temporary, renderStaticSite(args, { tls: true, forceHttps: args.forceHttps }), { mode: 0o644, flag: 'wx' });
+    await fs.rename(temporary, locations.available);
+    try { await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']); }
+    catch (error) { await fs.writeFile(locations.available, previous, { mode: 0o644 }); throw error; }
+    finally { await fs.rm(temporary, { force: true }); }
+    const certificate = `/etc/letsencrypt/live/${args.domain}/cert.pem`;
+    const details = await run('/usr/bin/openssl', ['x509', '-enddate', '-noout', '-in', certificate]);
+    const expiresAt = new Date(details.stdout.trim().replace(/^notAfter=/, '')).toISOString();
+    return { active: true, forceHttps: args.forceHttps, expiresAt };
   }
   if (operation === 'nginx_test_reload') {
     await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']); return { ok: true };

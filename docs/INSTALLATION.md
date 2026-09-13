@@ -45,7 +45,7 @@ LINTECH_URL=http://127.0.0.1:8080 sudo node /opt/lintech-panel/scripts/doctor.js
 sudo nginx -t
 ```
 
-Before entering credentials remotely, install a trusted TLS certificate and configure the Nginx 443 listener. TLS automation is not implemented in 0.2.0. On first login, the panel directs bootstrap accounts to the implemented Account password-change screen. Do not use this development release for untrusted production tenants.
+Before entering credentials remotely, install a trusted TLS certificate for the panel hostname and configure the Nginx 443 listener. The domain manager can queue Certbot certificates for customer sites, but it does not alter the panel hostname's operator-managed Nginx configuration. On first login, the panel directs bootstrap accounts to the implemented Account password-change screen. Do not use this development release for untrusted production tenants.
 
 ## Initial security checklist
 

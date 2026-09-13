@@ -15,7 +15,7 @@ function validMac(payload, supplied = '') {
 }
 
 const server = net.createServer(socket => {
-  let buffer = ''; socket.setTimeout(30_000); socket.setEncoding('utf8');
+  let buffer = ''; socket.setTimeout(150_000); socket.setEncoding('utf8');
   socket.on('data', async chunk => {
     buffer += chunk; if (buffer.length > 65_536) return socket.destroy();
     const newline = buffer.indexOf('\n'); if (newline < 0) return;
@@ -30,4 +30,3 @@ const server = net.createServer(socket => {
   });
 });
 server.listen(socketPath, () => { fs.chmodSync(socketPath, 0o660); console.log(`LinTech agent listening on ${socketPath}`); });
-
