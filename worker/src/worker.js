@@ -31,6 +31,8 @@ async function processOne() {
       operationResult = await callAgent(job.type, job.input, { timeoutMs: 60_000 });
     } else if (['create_python_app', 'delete_python_app', 'control_python_app'].includes(job.type)) {
       operationResult = await callAgent(job.type, job.input, { timeoutMs: job.type === 'create_python_app' ? 300_000 : 60_000 });
+    } else if (['create_node_app', 'delete_node_app', 'control_node_app'].includes(job.type)) {
+      operationResult = await callAgent(job.type, job.input, { timeoutMs: job.type === 'create_node_app' ? 300_000 : 60_000 });
     } else {
       throw new Error('runner is unavailable in this release');
     }
@@ -64,6 +66,11 @@ async function processOne() {
     } else if (job.type === 'delete_python_app' && !failure) {
       store.data.applications = store.data.applications.filter(item => item.id !== job.resourceId);
     } else if (['create_python_app', 'delete_python_app', 'control_python_app'].includes(job.type)) {
+      const application = store.data.applications.find(item => item.id === job.resourceId);
+      if (application) { application.status = failure ? 'error' : (operationResult.status || 'active'); application.updatedAt = new Date().toISOString(); if (failure) application.error = failure.message; else delete application.error; }
+    } else if (job.type === 'delete_node_app' && !failure) {
+      store.data.applications = store.data.applications.filter(item => item.id !== job.resourceId);
+    } else if (['create_node_app', 'delete_node_app', 'control_node_app'].includes(job.type)) {
       const application = store.data.applications.find(item => item.id === job.resourceId);
       if (application) { application.status = failure ? 'error' : (operationResult.status || 'active'); application.updatedAt = new Date().toISOString(); if (failure) application.error = failure.message; else delete application.error; }
     }

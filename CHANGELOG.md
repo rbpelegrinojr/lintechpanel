@@ -15,6 +15,8 @@ Phase: transactional static-domain provisioning milestone.
 - Validation: 24 tests pass after PHP template, TLS preservation, lifecycle authorization, and deletion-order coverage.
 - Added Phase 4 Python 3.12 application provisioning for Flask, Django, and generic WSGI: per-app virtual environments, fixed Gunicorn services, Unix-socket Nginx reverse proxying, CPU/RAM/task limits, start/stop/restart/remove controls, TLS-preserving templates, and post-start HTTP health checks.
 - Validation: 26 tests pass; live pip, Gunicorn, systemd, and Nginx execution remains externally unvalidated on Ubuntu.
+- Added Phase 5 Node.js 18 application provisioning with validated relative entrypoints, tenant-owned npm dependency/build execution, hardened systemd services, Unix-socket Nginx/WebSocket proxying, start/stop/restart/remove controls, TLS preservation, starter generation, and HTTP health checks.
+- Validation: 28 tests pass; live npm/systemd deployment remains externally unvalidated on Ubuntu.
 
 ## 0.2.0 — 2026-09-13
 

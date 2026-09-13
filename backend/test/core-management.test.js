@@ -82,7 +82,7 @@ test('domain lifecycle queues scoped privileged jobs and prevents overlap', asyn
   const admin = await login(f.app, 'admin', 'SecureAdminPass7');
   const reseller = await login(f.app, 'reseller', 'SecureReseller7');
   const outsider = await login(f.app, 'outside', 'SecureOutside77');
-  const plan = await f.app({ method: 'POST', pathname: '/api/packages', headers: headers(admin), body: { name: 'Domain plan', limits: { domains: 2, pythonApps: 1 } } });
+  const plan = await f.app({ method: 'POST', pathname: '/api/packages', headers: headers(admin), body: { name: 'Domain plan', limits: { domains: 2, pythonApps: 1, nodeApps: 1 } } });
   await f.app({ method: 'PATCH', pathname: '/api/users/outside', headers: headers(admin), body: { packageId: plan.body.id } });
 
   const created = await f.app({ method: 'POST', pathname: '/api/domains', headers: headers(outsider), body: { domain: 'site.example.com' } });
@@ -127,5 +127,11 @@ test('domain lifecycle queues scoped privileged jobs and prevents overlap', asyn
   const stopped = await f.app({ method: 'POST', pathname: `/api/applications/${pythonRecord.id}/stop`, headers: headers(outsider), body: {} });
   assert.equal(stopped.status, 202);
   assert.equal(f.store.data.jobs.at(-1).input.action, 'stop');
+  f.store.data.applications = [];
+  const nodeApplication = await f.app({ method: 'POST', pathname: '/api/applications', headers: headers(outsider), body: { domainId: record.id, kind: 'node', nodeVersion: '18', entrypoint: 'src/server.js' } });
+  assert.equal(nodeApplication.status, 202);
+  assert.equal(nodeApplication.body.entrypoint, 'src/server.js');
+  assert.equal(f.store.data.jobs.at(-1).type, 'create_node_app');
+  await assert.rejects(f.app({ method: 'POST', pathname: '/api/applications', headers: headers(outsider), body: { domainId: record.id, kind: 'node', nodeVersion: '18', entrypoint: '../bad.js' } }), /already has|invalid Node/);
   await fs.rm(f.dir, { recursive: true });
 });

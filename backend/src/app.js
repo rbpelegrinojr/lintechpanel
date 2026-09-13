@@ -272,11 +272,12 @@ export function createApplication(store, options = {}) {
       if (!owner) throw new NotFoundError('owner not found');
       const acmeEmail = store.data.users.find(item => item.role === ROLES.SUPER_ADMIN)?.email;
       if (!acmeEmail) throw new InputError('administrator email is required for SSL issuance');
-      const application = store.data.applications.find(item => item.domainId === record.id && ['php', 'python'].includes(item.kind));
+      const application = store.data.applications.find(item => item.domainId === record.id && ['php', 'python', 'node'].includes(item.kind));
       if (application && application.status !== 'active') throw new InputError('application provisioning must finish before issuing SSL');
       record.ssl = 'queued';
       const runtimeInput = application?.kind === 'php' ? { kind: 'php', appId: application.id, phpVersion: application.runtime.replace('php-', ''), framework: application.framework }
-        : application?.kind === 'python' ? { kind: 'python', appId: application.id, pythonVersion: application.runtime.replace('python-', ''), framework: application.framework, startup: application.startup } : {};
+        : application?.kind === 'python' ? { kind: 'python', appId: application.id, pythonVersion: application.runtime.replace('python-', ''), framework: application.framework, startup: application.startup }
+          : application?.kind === 'node' ? { kind: 'node', appId: application.id, nodeVersion: application.runtime.replace('node-', ''), entrypoint: application.entrypoint } : {};
       enqueue(record.ownerId, 'issue_ssl', { siteId: record.id, domain: record.name, username: owner.systemUsername || owner.username, email: acmeEmail, forceHttps: body.forceHttps !== false, ...runtimeInput }, record.id, record.resellerId);
       store.audit(actor.id, 'domain.ssl_requested', record.id); await store.save();
       return json(202, record);
@@ -284,7 +285,7 @@ export function createApplication(store, options = {}) {
 
     if (method === 'GET' && pathname === '/api/applications') return json(200, visibleResources(actor, store.data.applications));
     if (method === 'POST' && pathname === '/api/applications') {
-      if (!['php', 'python'].includes(body.kind)) throw new InputError('unsupported application type');
+      if (!['php', 'python', 'node'].includes(body.kind)) throw new InputError('unsupported application type');
       const domain = store.data.domains.find(item => item.id === body.domainId);
       if (!domain) throw new NotFoundError('domain not found');
       requireOwner(actor, domain);
@@ -293,21 +294,25 @@ export function createApplication(store, options = {}) {
       if (store.data.applications.some(item => item.domainId === domain.id)) throw new InputError('domain already has an application');
       const owner = store.data.users.find(item => item.id === domain.ownerId);
       if (!owner || owner.role !== ROLES.CUSTOMER) throw new InputError('application owner must be a customer');
-      const quota = body.kind === 'php' ? 'phpSites' : 'pythonApps';
+      const quota = body.kind === 'php' ? 'phpSites' : body.kind === 'python' ? 'pythonApps' : 'nodeApps';
       assertQuota(owner, quota, store.data.applications.filter(item => item.ownerId === owner.id && item.kind === body.kind).length);
       if (body.kind === 'php' && body.phpVersion !== '8.3') throw new InputError('unsupported PHP version');
       if (body.kind === 'php' && !['generic', 'laravel', 'codeigniter'].includes(body.framework)) throw new InputError('unsupported PHP framework');
       if (body.kind === 'python' && body.pythonVersion !== '3.12') throw new InputError('unsupported Python version');
       if (body.kind === 'python' && !['flask', 'django', 'generic_wsgi'].includes(body.framework)) throw new InputError('unsupported Python framework');
+      if (body.kind === 'node' && body.nodeVersion !== '18') throw new InputError('unsupported Node.js version');
+      const entrypoint = body.kind === 'node' ? String(body.entrypoint || 'server.js') : null;
+      if (entrypoint && (!/^[A-Za-z0-9_][A-Za-z0-9_./-]{0,126}\.(?:js|mjs|cjs)$/.test(entrypoint) || entrypoint.split('/').includes('..'))) throw new InputError('invalid Node.js entrypoint');
       const defaultStartup = body.framework === 'django' ? 'lintech_project.wsgi:application' : 'wsgi:app';
       const startup = body.kind === 'python' ? String(body.startup || defaultStartup) : null;
       if (startup && !WSGI_TARGET.test(startup)) throw new InputError('invalid WSGI startup target');
-      const runtime = body.kind === 'php' ? `php-${body.phpVersion}` : `python-${body.pythonVersion}`;
-      const application = { id: store.id('app'), ownerId: owner.id, resellerId: domain.resellerId, domainId: domain.id, name: domain.name, kind: body.kind, runtime, framework: body.framework, startup, status: 'queued', createdAt: timestamp(), updatedAt: timestamp() };
+      const runtime = body.kind === 'php' ? `php-${body.phpVersion}` : body.kind === 'python' ? `python-${body.pythonVersion}` : `node-${body.nodeVersion}`;
+      const application = { id: store.id('app'), ownerId: owner.id, resellerId: domain.resellerId, domainId: domain.id, name: domain.name, kind: body.kind, runtime, framework: body.framework || null, startup, entrypoint, status: 'queued', createdAt: timestamp(), updatedAt: timestamp() };
       store.data.applications.push(application);
       const common = { appId: application.id, siteId: domain.id, domain: domain.name, username: owner.systemUsername || owner.username, framework: body.framework, tls: domain.ssl === 'active', forceHttps: domain.forceHttps !== false };
-      const jobInput = body.kind === 'php' ? { ...common, phpVersion: body.phpVersion } : { ...common, pythonVersion: body.pythonVersion, startup, memoryMb: packageById(owner.packageId)?.limits.memoryMb, cpuPercent: packageById(owner.packageId)?.limits.cpuPercent, processes: packageById(owner.packageId)?.limits.processes };
-      enqueue(owner.id, body.kind === 'php' ? 'create_php_site' : 'create_python_app', jobInput, application.id, domain.resellerId);
+      const resources = { memoryMb: packageById(owner.packageId)?.limits.memoryMb, cpuPercent: packageById(owner.packageId)?.limits.cpuPercent, processes: packageById(owner.packageId)?.limits.processes };
+      const jobInput = body.kind === 'php' ? { ...common, phpVersion: body.phpVersion } : body.kind === 'python' ? { ...common, pythonVersion: body.pythonVersion, startup, ...resources } : { ...common, nodeVersion: body.nodeVersion, entrypoint, ...resources };
+      enqueue(owner.id, body.kind === 'php' ? 'create_php_site' : body.kind === 'python' ? 'create_python_app' : 'create_node_app', jobInput, application.id, domain.resellerId);
       store.audit(actor.id, 'application.create', application.id, 'success', { kind: body.kind, framework: body.framework }); await store.save();
       return json(202, application);
     }
@@ -322,8 +327,8 @@ export function createApplication(store, options = {}) {
       if (!domain || !owner) throw new NotFoundError('application resources are incomplete');
       application.status = 'deleting'; application.updatedAt = timestamp();
       const common = { appId: application.id, siteId: domain.id, domain: domain.name, username: owner.systemUsername || owner.username, framework: application.framework, tls: domain.ssl === 'active', forceHttps: domain.forceHttps !== false };
-      const jobInput = application.kind === 'php' ? { ...common, phpVersion: application.runtime.replace('php-', '') } : { ...common, pythonVersion: application.runtime.replace('python-', ''), startup: application.startup };
-      enqueue(owner.id, application.kind === 'php' ? 'delete_php_site' : 'delete_python_app', jobInput, application.id, application.resellerId);
+      const jobInput = application.kind === 'php' ? { ...common, phpVersion: application.runtime.replace('php-', '') } : application.kind === 'python' ? { ...common, pythonVersion: application.runtime.replace('python-', ''), startup: application.startup } : { ...common, nodeVersion: application.runtime.replace('node-', ''), entrypoint: application.entrypoint };
+      enqueue(owner.id, application.kind === 'php' ? 'delete_php_site' : application.kind === 'python' ? 'delete_python_app' : 'delete_node_app', jobInput, application.id, application.resellerId);
       store.audit(actor.id, 'application.delete_requested', application.id); await store.save();
       return json(202, application);
     }
@@ -332,12 +337,14 @@ export function createApplication(store, options = {}) {
       const application = store.data.applications.find(item => item.id === applicationAction[1]);
       if (!application) throw new NotFoundError();
       requireOwner(actor, application);
-      if (application.kind !== 'python') throw new InputError('process controls apply only to Python applications');
+      if (!['python', 'node'].includes(application.kind)) throw new InputError('process controls apply only to Python and Node.js applications');
       if (['queued', 'deleting'].includes(application.status)) throw new InputError('application operation already in progress');
       const domain = store.data.domains.find(item => item.id === application.domainId); const owner = store.data.users.find(item => item.id === application.ownerId);
       if (!domain || !owner) throw new NotFoundError('application resources are incomplete');
       application.status = 'queued'; application.updatedAt = timestamp();
-      enqueue(owner.id, 'control_python_app', { appId: application.id, siteId: domain.id, domain: domain.name, username: owner.systemUsername || owner.username, pythonVersion: application.runtime.replace('python-', ''), framework: application.framework, startup: application.startup, action: applicationAction[2] }, application.id, application.resellerId);
+      const common = { appId: application.id, siteId: domain.id, domain: domain.name, username: owner.systemUsername || owner.username, action: applicationAction[2] };
+      const jobInput = application.kind === 'python' ? { ...common, pythonVersion: application.runtime.replace('python-', ''), framework: application.framework, startup: application.startup } : { ...common, nodeVersion: application.runtime.replace('node-', ''), entrypoint: application.entrypoint };
+      enqueue(owner.id, application.kind === 'python' ? 'control_python_app' : 'control_node_app', jobInput, application.id, application.resellerId);
       store.audit(actor.id, `application.${applicationAction[2]}`, application.id); await store.save(); return json(202, application);
     }
 

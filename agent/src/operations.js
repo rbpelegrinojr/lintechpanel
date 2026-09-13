@@ -4,6 +4,7 @@ import path from 'node:path';
 import { renderStaticSite, sitePaths, validateSite } from './nginx.js';
 import { phpPoolPath, renderPhpPool, renderPhpSite, validatePhpSite } from './php.js';
 import { pythonPaths, renderPythonSite, renderPythonUnit, starterSource, validatePythonApp } from './python.js';
+import { nodeAppPaths, nodeStarter, renderNodeSite, renderNodeUnit, validateNodeApp } from './node-app.js';
 
 const USER = /^[a-z][a-z0-9_-]{2,31}$/;
 const ID = /^[a-z][a-z0-9_-]{2,63}$/;
@@ -59,12 +60,17 @@ export const schemas = Object.freeze({
     ? { ...validatePhpSite(args), kind: 'php', email: assert(args.email, EMAIL, 'email'), forceHttps: args.forceHttps !== false }
     : args.kind === 'python'
       ? { ...validatePythonApp(args), kind: 'python', email: assert(args.email, EMAIL, 'email'), forceHttps: args.forceHttps !== false }
+      : args.kind === 'node'
+        ? { ...validateNodeApp(args), kind: 'node', email: assert(args.email, EMAIL, 'email'), forceHttps: args.forceHttps !== false }
       : { ...validateSite(args), kind: 'static', email: assert(args.email, EMAIL, 'email'), forceHttps: args.forceHttps !== false },
   create_php_site: args => ({ ...validatePhpSite(args), tls: args.tls === true, forceHttps: args.forceHttps !== false }),
   delete_php_site: args => ({ ...validatePhpSite(args), tls: args.tls === true, forceHttps: args.forceHttps !== false }),
   create_python_app: args => ({ ...validatePythonApp(args), tls: args.tls === true, forceHttps: args.forceHttps !== false, memoryMb: args.memoryMb, cpuPercent: args.cpuPercent, processes: args.processes }),
   delete_python_app: args => ({ ...validatePythonApp(args), tls: args.tls === true, forceHttps: args.forceHttps !== false }),
   control_python_app: args => ({ ...validatePythonApp(args), action: assert(args.action, /^(start|stop|restart)$/, 'application action') }),
+  create_node_app: args => ({ ...validateNodeApp(args), tls: args.tls === true, forceHttps: args.forceHttps !== false, memoryMb: args.memoryMb, cpuPercent: args.cpuPercent, processes: args.processes }),
+  delete_node_app: args => ({ ...validateNodeApp(args), tls: args.tls === true, forceHttps: args.forceHttps !== false }),
+  control_node_app: args => ({ ...validateNodeApp(args), action: assert(args.action, /^(start|stop|restart)$/, 'application action') }),
   nginx_test_reload: args => ({ siteId: assert(args.siteId, ID, 'site id') })
 });
 
@@ -133,7 +139,7 @@ export async function executeOperation(operation, rawArgs, config = {}) {
     await run('/usr/bin/certbot', ['certonly', '--webroot', '--webroot-path', documentRoot, '--domain', args.domain, '--non-interactive', '--agree-tos', '--email', args.email, '--keep-until-expiring']);
     const previous = await fs.readFile(locations.available, 'utf8');
     const temporary = `${locations.available}.${process.pid}.tmp`;
-    const tlsConfiguration = args.kind === 'php' ? renderPhpSite(args, { tls: true, forceHttps: args.forceHttps }) : args.kind === 'python' ? renderPythonSite(args, { tls: true, forceHttps: args.forceHttps }) : renderStaticSite(args, { tls: true, forceHttps: args.forceHttps });
+    const tlsConfiguration = args.kind === 'php' ? renderPhpSite(args, { tls: true, forceHttps: args.forceHttps }) : args.kind === 'python' ? renderPythonSite(args, { tls: true, forceHttps: args.forceHttps }) : args.kind === 'node' ? renderNodeSite(args, { tls: true, forceHttps: args.forceHttps }) : renderStaticSite(args, { tls: true, forceHttps: args.forceHttps });
     await fs.writeFile(temporary, tlsConfiguration, { mode: 0o644, flag: 'wx' });
     await fs.rename(temporary, locations.available);
     try { await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']); }
@@ -239,6 +245,34 @@ export async function executeOperation(operation, rawArgs, config = {}) {
     const appPaths = pythonPaths(args, config.unitRoot); await fs.access(appPaths.unit);
     await run('/usr/bin/systemctl', [args.action, appPaths.service]); return { status: args.action === 'stop' ? 'stopped' : 'active' };
   }
+  if (operation === 'create_node_app') {
+    const locations = sitePaths(args, config.nginxRoot); const appPaths = nodeAppPaths(args, config.unitRoot);
+    await fs.access(locations.enabled); await fs.mkdir(appPaths.root, { recursive: true, mode: 0o750 }); await run('/usr/bin/chown', ['-R', `${args.username}:${args.username}`, appPaths.root]);
+    const packageFile = path.join(appPaths.root, 'package.json');
+    try { await fs.access(packageFile); const locked = await fs.access(path.join(appPaths.root, 'package-lock.json')).then(() => true).catch(() => false); await run('/usr/sbin/runuser', ['-u', args.username, '--', '/usr/bin/npm', locked ? 'ci' : 'install', '--no-audit', '--no-fund'], { cwd: appPaths.root, timeoutMs: 180_000 }); await run('/usr/sbin/runuser', ['-u', args.username, '--', '/usr/bin/npm', 'run', 'build', '--if-present'], { cwd: appPaths.root, timeoutMs: 180_000 }); }
+    catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      await fs.writeFile(packageFile, `${JSON.stringify({ name: `lintech-${args.appId}`, private: true, type: 'module', scripts: { start: `node ${args.entrypoint}` } }, null, 2)}\n`, { mode: 0o640, flag: 'wx' });
+      await fs.mkdir(path.dirname(path.join(appPaths.root, args.entrypoint)), { recursive: true, mode: 0o750 });
+      await fs.writeFile(path.join(appPaths.root, args.entrypoint), nodeStarter(), { mode: 0o640, flag: 'wx' }); await run('/usr/bin/chown', ['-R', `${args.username}:${args.username}`, appPaths.root]);
+    }
+    await fs.access(path.join(appPaths.root, args.entrypoint));
+    const previousSite = await fs.readFile(locations.available, 'utf8'); let previousUnit = null; try { previousUnit = await fs.readFile(appPaths.unit, 'utf8'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const siteTemporary = `${locations.available}.${process.pid}.tmp`; const unitTemporary = `${appPaths.unit}.${process.pid}.tmp`;
+    try {
+      await fs.writeFile(unitTemporary, renderNodeUnit(args), { mode: 0o644, flag: 'wx' }); await fs.rename(unitTemporary, appPaths.unit);
+      await fs.writeFile(siteTemporary, renderNodeSite(args, { tls: args.tls, forceHttps: args.forceHttps }), { mode: 0o644, flag: 'wx' }); await fs.rename(siteTemporary, locations.available);
+      await run('/usr/bin/systemctl', ['daemon-reload']); await run('/usr/bin/systemctl', ['enable', '--now', appPaths.service]); await waitForUnixHttp(appPaths.socket);
+      await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']); return { active: true, runtime: `node-${args.nodeVersion}` };
+    } catch (error) { await fs.writeFile(locations.available, previousSite, { mode: 0o644 }); if (previousUnit === null) { await run('/usr/bin/systemctl', ['disable', '--now', appPaths.service]).catch(() => {}); await fs.rm(appPaths.unit, { force: true }); } else await fs.writeFile(appPaths.unit, previousUnit, { mode: 0o644 }); await run('/usr/bin/systemctl', ['daemon-reload']).catch(() => {}); throw error; }
+    finally { await fs.rm(siteTemporary, { force: true }); await fs.rm(unitTemporary, { force: true }); }
+  }
+  if (operation === 'delete_node_app') {
+    const locations = sitePaths(args, config.nginxRoot); const appPaths = nodeAppPaths(args, config.unitRoot); const previousSite = await fs.readFile(locations.available, 'utf8'); const previousUnit = await fs.readFile(appPaths.unit, 'utf8');
+    try { await run('/usr/bin/systemctl', ['disable', '--now', appPaths.service]); await fs.rm(appPaths.unit); await run('/usr/bin/systemctl', ['daemon-reload']); await fs.writeFile(locations.available, renderStaticSite(args, { tls: args.tls, forceHttps: args.forceHttps }), { mode: 0o644 }); await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']); return { active: false }; }
+    catch (error) { await fs.writeFile(locations.available, previousSite, { mode: 0o644 }); await fs.writeFile(appPaths.unit, previousUnit, { mode: 0o644 }); await run('/usr/bin/systemctl', ['daemon-reload']).catch(() => {}); throw error; }
+  }
+  if (operation === 'control_node_app') { const appPaths = nodeAppPaths(args, config.unitRoot); await fs.access(appPaths.unit); await run('/usr/bin/systemctl', [args.action, appPaths.service]); return { status: args.action === 'stop' ? 'stopped' : 'active' }; }
   if (operation === 'nginx_test_reload') {
     await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']); return { ok: true };
   }
