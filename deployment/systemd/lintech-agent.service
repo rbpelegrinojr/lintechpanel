@@ -1,0 +1,21 @@
+[Unit]
+Description=LinTech Panel Privileged Agent
+After=network.target
+
+[Service]
+User=root
+Group=root
+WorkingDirectory=/opt/lintech-panel
+Environment=LINTECH_AGENT_SOCKET=/run/lintech-panel/agent.sock
+ExecStart=/bin/sh -c 'LINTECH_AGENT_SECRET=$(cat /etc/lintech-panel/agent.secret) exec /usr/bin/node /opt/lintech-panel/agent/src/agent.js'
+Restart=on-failure
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/run/lintech-panel /home /etc/passwd /etc/shadow /etc/group /etc/gshadow /etc/nginx/sites-available /etc/nginx/sites-enabled
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SETGID CAP_SETUID
+
+[Install]
+WantedBy=multi-user.target

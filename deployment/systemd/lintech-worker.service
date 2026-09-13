@@ -1,0 +1,21 @@
+[Unit]
+Description=LinTech Panel Worker
+After=lintech-api.service
+
+[Service]
+User=lintech
+Group=lintech
+WorkingDirectory=/opt/lintech-panel
+EnvironmentFile=/etc/lintech-panel/panel.env
+ExecStart=/usr/bin/node /opt/lintech-panel/worker/src/worker.js
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/lintech-panel
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
+

@@ -1,0 +1,17 @@
+{
+  "name": "lintech-panel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node backend/src/server.js",
+    "worker": "node worker/src/worker.js",
+    "agent": "node agent/src/agent.js",
+    "bootstrap": "node scripts/bootstrap-admin.js",
+    "doctor": "node scripts/doctor.js",
+    "test": "node --test",
+    "lint": "node --check backend/src/server.js && node --check agent/src/agent.js && node --check worker/src/worker.js"
+  },
+  "license": "AGPL-3.0-only"
+}
