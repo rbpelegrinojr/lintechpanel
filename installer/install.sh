@@ -21,7 +21,17 @@ while (($#)); do
 done
 [[ ${EUID} -eq 0 ]] || { printf 'Run with sudo.\n' >&2; exit 1; }
 mkdir -p "$LOG_DIR"; chmod 750 "$LOG_DIR"; exec > >(tee -a "$LOG_DIR/install.log") 2>&1
-trap 'printf "Installation failed at line %s. Review %s/install.log; customer data was not removed.\n" "$LINENO" "$LOG_DIR" >&2' ERR
+on_error() {
+  code=$?
+  line=${1:-unknown}
+  printf 'Installation failed at line %s (exit %s). Review %s/install.log; customer data was not removed.\n' "$line" "$code" "$LOG_DIR" >&2
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl --no-pager --full status lintech-api lintech-worker lintech-agent nginx 2>&1 || true
+    journalctl --no-pager -n 50 -u lintech-api -u lintech-worker -u lintech-agent 2>&1 || true
+  fi
+  exit "$code"
+}
+trap 'on_error "$LINENO"' ERR
 
 step(){ printf '\n[%s/12] %s\n' "$1" "$2"; }
 step 1 'Checking operating system and conflicts'; "$ROOT_DIR/installer/preflight.sh"
@@ -43,7 +53,6 @@ step 6 'Creating initial administrator'; if [[ -z ${LINTECH_ADMIN_PASSWORD:-} ]]
 step 7 'Installing systemd services'; install -m 0644 "$APP_DIR/deployment/systemd/lintech-api.service" /etc/systemd/system/; install -m 0644 "$APP_DIR/deployment/systemd/lintech-worker.service" /etc/systemd/system/; install -m 0644 "$APP_DIR/deployment/systemd/lintech-agent.service" /etc/systemd/system/; systemctl daemon-reload
 step 8 'Configuring Nginx'; sed "s/__PANEL_HOST__/${HOSTNAME_VALUE}/g" "$APP_DIR/deployment/nginx/panel.conf" > /etc/nginx/sites-available/lintech-panel; ln -sfn /etc/nginx/sites-available/lintech-panel /etc/nginx/sites-enabled/lintech-panel; nginx -t
 step 9 'Configuring firewall and brute-force protection'; ufw allow OpenSSH; ufw allow 'Nginx Full'; ufw --force enable; systemctl enable --now fail2ban
-step 10 'Starting services'; systemctl enable --now lintech-api lintech-worker lintech-agent; systemctl reload nginx
+step 10 'Starting services'; systemctl enable --now lintech-api lintech-worker lintech-agent; systemctl reload nginx; for service in lintech-api lintech-worker lintech-agent nginx; do systemctl is-active --quiet "$service" || { systemctl --no-pager --full status "$service" || true; exit 1; }; done
 step 11 'Running health checks'; LINTECH_URL=http://127.0.0.1:8080 node "$APP_DIR/scripts/doctor.js"
 step 12 'Installation complete'; printf 'Panel HTTP endpoint: http://%s (issue TLS before production login)\nConfiguration: %s\nApplication: %s\nLogs: %s\n' "$HOSTNAME_VALUE" "$CONFIG_DIR" "$APP_DIR" "$LOG_DIR"
-
