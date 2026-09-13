@@ -351,14 +351,21 @@ export function createApplication(store, options = {}) {
       store.audit(actor.id, `application.${applicationAction[2]}`, application.id); await store.save(); return json(202, application);
     }
 
-    if (method === 'POST' && pathname === '/api/jobs') {
-      const allowed = ['deploy_php', 'deploy_python', 'deploy_node', 'deploy_static', 'issue_ssl', 'backup', 'restore', 'git_pull'];
-      if (!allowed.includes(body.type)) throw new InputError('job type is not allowed');
-      const job = { id: store.id('job'), ownerId: actor.id, resellerId: actor.resellerId || null, type: body.type, status: 'queued', progress: 0, input: body.input || {}, safeLogs: [], createdAt: timestamp() };
-      store.data.jobs.push(job); store.audit(actor.id, 'job.create', job.id, 'success', { type: job.type }); await store.save();
+    if (method === 'GET' && pathname === '/api/jobs') return json(200, visibleResources(actor, store.data.jobs).map(({ input, ...safe }) => safe));
+    const jobRetry = pathname.match(/^\/api\/jobs\/([^/]+)\/retry$/);
+    if (jobRetry && method === 'POST') {
+      const job = store.data.jobs.find(item => item.id === jobRetry[1]);
+      if (!job) throw new NotFoundError();
+      requireOwner(actor, job);
+      if (job.status !== 'failed') throw new InputError('only failed jobs can be retried');
+      job.attempts = (job.attempts || 1) + 1; if (job.attempts > 5) throw new InputError('job retry limit reached');
+      job.status = 'queued'; job.progress = 0; job.safeLogs.push('Retry requested.'); delete job.error; delete job.startedAt; delete job.completedAt; delete job.workerId;
+      const domain = store.data.domains.find(item => item.id === job.resourceId); if (domain) { domain.status = job.type === 'delete_domain' ? 'deleting' : 'queued'; delete domain.error; }
+      const user = store.data.users.find(item => item.id === job.resourceId); if (user) user.systemStatus = 'queued';
+      const application = store.data.applications.find(item => item.id === job.resourceId); if (application) { application.status = job.type.startsWith('delete_') ? 'deleting' : 'queued'; delete application.error; }
+      store.audit(actor.id, 'job.retry', job.id, 'success', { attempt: job.attempts }); await store.save();
       return json(202, { ...job, input: undefined });
     }
-    if (method === 'GET' && pathname === '/api/jobs') return json(200, visibleResources(actor, store.data.jobs).map(({ input, ...safe }) => safe));
 
     if (method === 'GET' && pathname === '/api/audit') {
       const visible = actor.role === ROLES.SUPER_ADMIN ? store.data.audit : store.data.audit.filter(item => item.actorId === actor.id);

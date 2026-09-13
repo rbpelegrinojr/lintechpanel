@@ -48,6 +48,14 @@ async function waitForUnixHttp(socketPath) {
   throw new Error(`application health check failed: ${lastError.message}`);
 }
 
+export function managedUserState(passwdText, username) {
+  const entry = String(passwdText).split('\n').find(line => line.startsWith(`${username}:`));
+  if (!entry) return 'missing';
+  const fields = entry.split(':');
+  if (/^lt_[a-f0-9]{12}$/.test(username) && fields[5] === `/home/${username}` && fields[6] === '/bin/bash') return 'managed';
+  return 'conflict';
+}
+
 export const schemas = Object.freeze({
   create_user: args => ({ username: assert(args.username, USER, 'username') }),
   suspend_user: args => ({ username: assert(args.username, USER, 'username') }),
@@ -86,7 +94,12 @@ export function validateOperation(operation, args) {
 export async function executeOperation(operation, rawArgs, config = {}) {
   const args = validateOperation(operation, rawArgs);
   if (process.platform !== 'linux') throw new Error('privileged operations require Linux');
-  if (operation === 'create_user') return run('/usr/sbin/useradd', ['--create-home', '--shell', '/bin/bash', '--user-group', args.username]);
+  if (operation === 'create_user') {
+    const state = managedUserState(await fs.readFile('/etc/passwd', 'utf8'), args.username);
+    if (state === 'managed') return { ok: true, existing: true };
+    if (state === 'conflict') throw new Error('Linux account name conflicts with an unmanaged user');
+    return run('/usr/sbin/useradd', ['--create-home', '--no-log-init', '--shell', '/bin/bash', '--user-group', args.username]);
+  }
   if (operation === 'suspend_user') return run('/usr/sbin/usermod', ['--lock', '--expiredate', '1', args.username]);
   if (operation === 'unsuspend_user') { await run('/usr/sbin/usermod', ['--unlock', '--expiredate', '-1', args.username]); return { ok: true }; }
   if (operation === 'create_customer_dirs') {

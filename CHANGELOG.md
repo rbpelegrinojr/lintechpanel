@@ -20,6 +20,11 @@ Phase: transactional static-domain provisioning milestone.
 - Added Phase 6 React publishing with a real React 19/Vite 6 starter compatible with the current Node 18 target, tenant-owned dependency/build execution, configurable confined output directories, symlink/file-count/size validation, atomic public-tree replacement and rollback, and deployment size metadata.
 - Added Nginx `disable_symlinks if_not_owner` defenses to static and PHP document roots.
 - Validation: 30 tests pass; real npm registry/build/Nginx publication remains externally unvalidated on Ubuntu.
+- Fixed the post-login browser crash caused by reading `event.currentTarget` after an asynchronous boundary.
+- Fixed Linux customer provisioning under the hardened agent by allowing required `/etc` account-database transactions, avoiding lastlog initialization, and safely recognizing only randomized panel-managed accounts during retry.
+- Added owner-scoped failed-job retry (maximum five attempts), visible safe failure diagnostics, provisioning-state badges, and removal of the non-functional generic job form.
+- Installer reruns now stop panel services before replacing application files and prepare shadow-utils account files before restarting.
+- Validation: 32 tests pass, including managed-account idempotency and cross-tenant retry authorization.
 
 ## 0.2.0 — 2026-09-13
 

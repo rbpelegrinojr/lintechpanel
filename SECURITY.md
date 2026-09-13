@@ -10,6 +10,8 @@
 - CSP, clickjacking, MIME-sniffing, referrer, and permissions headers; customer-facing 500 responses omit stack traces.
 - Non-login service user, restrictive file modes, systemd sandboxing, UFW public ports limited to SSH/HTTP/HTTPS.
 
+The root agent's systemd sandbox allows `/etc` writes because Ubuntu `useradd` performs locked, temporary-file account-database transactions and the same agent manages Nginx, PHP-FPM, systemd, and Certbot configuration. This makes the small HMAC-authenticated operation allowlist, fixed binaries, argument validation, read-only application installation, and absence of a generic command endpoint critical controls. A future split into narrower privileged helpers would further reduce impact if the agent process were compromised.
+
 The Node.js API runs with V8's `--jitless` option so systemd's `MemoryDenyWriteExecute` protection remains compatible with the runtime. This reduces API execution performance but avoids executable JIT memory in the public control-plane service. The service also retains `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem`, `ProtectHome`, `RestrictSUIDSGID`, and `LockPersonality`.
 
 ## Threat model and residual risk

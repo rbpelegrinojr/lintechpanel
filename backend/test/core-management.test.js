@@ -140,3 +140,13 @@ test('domain lifecycle queues scoped privileged jobs and prevents overlap', asyn
   assert.equal(f.store.data.jobs.at(-1).type, 'deploy_react_app');
   await fs.rm(f.dir, { recursive: true });
 });
+
+test('failed provisioning jobs expose safe diagnostics and can be retried by managers', async () => {
+  const f = await fixture(); const admin = await login(f.app, 'admin', 'SecureAdminPass7'); const outsider = await login(f.app, 'outside', 'SecureOutside77');
+  const created = await f.app({ method: 'POST', pathname: '/api/users', headers: headers(admin), body: { username: 'retryuser', email: 'retry@example.com', password: 'SecureRetryPass7' } });
+  const job = f.store.data.jobs.find(item => item.resourceId === created.body.id); job.status = 'failed'; job.progress = 5; job.error = 'useradd failed safely'; job.completedAt = new Date().toISOString();
+  await assert.rejects(f.app({ method: 'POST', pathname: `/api/jobs/${job.id}/retry`, headers: headers(outsider), body: {} }), /forbidden/);
+  const retried = await f.app({ method: 'POST', pathname: `/api/jobs/${job.id}/retry`, headers: headers(admin), body: {} });
+  assert.equal(retried.status, 202); assert.equal(retried.body.status, 'queued'); assert.equal(retried.body.input, undefined); assert.equal(retried.body.error, undefined); assert.equal(created.body.systemUsername, undefined);
+  await fs.rm(f.dir, { recursive: true });
+});

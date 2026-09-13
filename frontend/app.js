@@ -104,7 +104,8 @@ async function users() {
     const packageControl = user.role === 'customer' ? node('select', { 'aria-label': `Package for ${user.username}`, onchange: async event => { try { await api(`/users/${user.id}`, { method: 'PATCH', body: JSON.stringify({ packageId: event.target.value }) }); showNotice('Hosting package updated.'); } catch (error) { showNotice(error.message, true); await usersView(); } } },
       node('option', { value: '', selected: !user.packageId ? true : null }, 'No package'),
       packages.map(item => node('option', { value: item.id, selected: item.id === user.packageId ? true : null }, item.name))) : node('span', { class: 'muted' }, '—');
-    return node('tr', {}, node('td', {}, node('strong', {}, user.username), node('div', { class: 'muted' }, user.email)), node('td', {}, roleLabel(user.role)), node('td', {}, packageControl), node('td', {}, badge(user.suspended ? 'Suspended' : 'Active', !user.suspended)), node('td', { class: 'actions' },
+    const accountStatus = user.suspended ? 'Suspended' : user.systemStatus === 'error' ? 'Provisioning error' : user.systemStatus === 'queued' ? 'Provisioning' : 'Active';
+    return node('tr', {}, node('td', {}, node('strong', {}, user.username), node('div', { class: 'muted' }, user.email)), node('td', {}, roleLabel(user.role)), node('td', {}, packageControl), node('td', {}, badge(accountStatus, accountStatus === 'Active')), node('td', { class: 'actions' },
       user.id === me.id ? node('span', { class: 'muted' }, 'Current account') : [
       node('button', { class: 'ghost', type: 'button', onclick: async () => { const email = prompt(`Email for ${user.username}:`, user.email); if (!email || email === user.email) return; try { await api(`/users/${user.id}`, { method: 'PATCH', body: JSON.stringify({ email }) }); showNotice('Email updated.'); await usersView(); } catch (error) { showNotice(error.message, true); } } }, 'Edit email'),
       node('button', { class: user.suspended ? 'ghost' : 'warning', type: 'button', onclick: async () => { try { await api(`/users/${user.id}/${user.suspended ? 'unsuspend' : 'suspend'}`, { method: 'POST', body: '{}' }); showNotice('Account status updated.'); await usersView(); } catch (error) { showNotice(error.message, true); } } }, user.suspended ? 'Unsuspend' : 'Suspend'),
@@ -161,10 +162,9 @@ async function domainsView() {
 
 async function jobsView() {
   const jobs = await api('/jobs');
-  const form = node('form', { class: 'form-grid' }, selectField('Operation', 'type', ['deploy_static', 'deploy_php', 'deploy_python', 'deploy_node', 'issue_ssl', 'backup', 'restore', 'git_pull'].map(value => ({ value, label: value.replaceAll('_', ' ') }))), node('button', { type: 'submit' }, 'Queue operation'));
-  form.addEventListener('submit', async event => { event.preventDefault(); try { await api('/jobs', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) }); showNotice('Job queued.'); await jobsView(); } catch (error) { showNotice(error.message, true); } });
-  const table = jobs.length ? node('div', { class: 'table-wrap' }, node('table', {}, node('thead', {}, node('tr', {}, ['Operation', 'Status', 'Progress', 'Created'].map(label => node('th', {}, label)))), node('tbody', {}, jobs.map(item => node('tr', {}, node('td', {}, item.type), node('td', {}, badge(item.status, item.status === 'successful' || item.status === 'queued')), node('td', {}, `${item.progress}%`), node('td', {}, date(item.createdAt))))))) : empty('No jobs yet.');
-  content.replaceChildren(panel('Queue operation', form), node('br'), panel('Job history', table));
+  const retry = async item => { try { await api(`/jobs/${item.id}/retry`, { method: 'POST', body: '{}' }); showNotice('Failed job queued for retry.'); await jobsView(); } catch (error) { showNotice(error.message, true); } };
+  const table = jobs.length ? node('div', { class: 'table-wrap' }, node('table', {}, node('thead', {}, node('tr', {}, ['Operation', 'Status', 'Progress', 'Details', 'Created', 'Actions'].map(label => node('th', {}, label)))), node('tbody', {}, jobs.map(item => node('tr', {}, node('td', { class: 'code' }, item.type), node('td', {}, badge(item.status, item.status === 'successful' || item.status === 'queued')), node('td', {}, `${item.progress}%`), node('td', { class: 'muted' }, item.error || item.safeLogs?.at(-1) || '—'), node('td', {}, date(item.createdAt)), node('td', { class: 'actions' }, item.status === 'failed' ? node('button', { class: 'ghost', type: 'button', onclick: () => retry(item) }, 'Retry') : node('span', { class: 'muted' }, '—'))))))) : empty('No jobs yet.');
+  content.replaceChildren(panel('Job history', table));
 }
 
 async function applicationsView() {
@@ -226,8 +226,8 @@ function signOut(callApi = true) {
 }
 
 document.querySelector('#login-form').addEventListener('submit', async event => {
-  event.preventDefault(); const error = document.querySelector('#login-error'); error.textContent = '';
-  try { auth = await api('/auth/login', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) }); sessionStorage.setItem('lintech.auth', JSON.stringify(auth)); event.currentTarget.reset(); await enterApplication(); }
+  event.preventDefault(); const form = event.currentTarget; const error = document.querySelector('#login-error'); error.textContent = '';
+  try { auth = await api('/auth/login', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) }); sessionStorage.setItem('lintech.auth', JSON.stringify(auth)); form.reset(); await enterApplication(); }
   catch (failure) { error.textContent = failure.message; }
 });
 document.querySelector('#logout').addEventListener('click', () => signOut());
