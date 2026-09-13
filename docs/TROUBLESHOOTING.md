@@ -6,5 +6,6 @@
 - Agent unavailable: inspect socket ownership with `sudo stat -c '%U:%G %a %n' /run/lintech-panel/agent.sock`; the expected result is `root:lintech 660`. Upgrade and rerun the installer to apply the agent-owned socket setup and worker startup ordering, then inspect `journalctl -u lintech-agent -u lintech-worker` if access still fails. Never weaken socket permissions to fix access.
 - Nginx failure: run `sudo nginx -t`; do not reload until it passes.
 - Nginx reports `open() "/run/nginx.pid" failed (30: Read-only file system)`: pull the latest release and rerun the installer; the agent unit now permits only the fixed Nginx PID file required by `nginx -t`.
+- Nginx reports a read-only error for `/var/log/nginx/*.log`: pull the latest release and rerun the installer; the agent unit permits only the standard `error.log` and `access.log` files needed by `nginx -t`.
 - Login failures: verify the account is not suspended and wait 15 minutes after five failures. Do not edit hashes manually.
 - Installer refusal: resolve the reported OS/resource/panel conflict; do not bypass a detected existing control panel.
