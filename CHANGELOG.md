@@ -7,6 +7,7 @@
 - Installer: fixed administrator bootstrap on Ubuntu's Node.js 18 package by importing `randomUUID` explicitly, corrected the post-clone directory name in installation commands, and made the API service use V8's JIT-less mode so the executable-memory systemd restriction can remain enabled.
 - Testing: added a Node.js 18/20/22 CI matrix and a regression test for identifier generation.
 - Installer: made health verification tolerate bounded service startup delay and emit service status, recent journals, and the underlying network error on persistent failure.
+- Installer: made partial-install recovery idempotent by preserving an existing administrator and agent secret and restarting already-active services after updated units are installed.
 
 
 ## 0.1.0 — 2026-09-13

@@ -35,6 +35,8 @@ sudo bash installer/install.sh --hostname panel.example.com --admin-email admin@
 
 Set `LINTECH_ADMIN_PASSWORD` only from a protected automation environment if no TTY is available; remove it immediately afterward.
 
+The installer is safe to rerun after a partial installation: it preserves an existing super administrator and agent secret, replaces application files, reloads units, and restarts panel services. The entered administrator password is ignored when an administrator already exists.
+
 ## Verification and first login
 
 ```bash
