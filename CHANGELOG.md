@@ -4,6 +4,9 @@
 
 - Repository: added `.gitignore` and line-ending rules, documented `config/`, `packaging/`, and the cross-component test hierarchy, and corrected the public clone URL.
 - Licensing: replaced the abbreviated notice with the complete canonical AGPLv3 license text.
+- Installer: fixed administrator bootstrap on Ubuntu's Node.js 18 package by importing `randomUUID` explicitly, and corrected the post-clone directory name in installation commands.
+- Testing: added a Node.js 18/20/22 CI matrix and a regression test for identifier generation.
+
 
 ## 0.1.0 — 2026-09-13
 

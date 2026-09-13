@@ -23,7 +23,7 @@ Create `A panel VPS_PUBLIC_IP` at the DNS provider and wait for resolution. Then
 ```bash
 sudo apt install git -y
 git clone https://github.com/rbpelegrinojr/lintechpanel.git
-cd lintech-panel
+cd lintechpanel
 sudo bash installer/install.sh
 ```
 

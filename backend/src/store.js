@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 const empty = () => ({ users: [], sessions: [], packages: [], domains: [], jobs: [], audit: [], notifications: [] });
 
@@ -19,9 +20,8 @@ export class Store {
     });
     return this.queue;
   }
-  id(prefix) { return `${prefix}_${crypto.randomUUID()}`; }
+  id(prefix) { return `${prefix}_${randomUUID()}`; }
   audit(actorId, action, target, result = 'success', metadata = {}) {
     this.data.audit.push({ id: this.id('aud'), actorId, action, target, result, metadata, at: new Date().toISOString() });
   }
 }
-
