@@ -38,7 +38,7 @@ Unimplemented: working PHP/Laravel/CodeIgniter deployment; Python/Flask/Django/G
 | 16–19 | PARTIAL | Job/audit/notification structures; production queue/tokens/delivery absent |
 | 20 | PARTIAL | User-provided Ubuntu 24.04 installation evidence covers installer retry, services, Nginx, UFW, and API health; clean-host matrix and customer stacks remain unvalidated |
 | 21–26 | PARTIAL | Install/manual/update/migration/DR/security docs and scripts; external drills absent |
-| 27 | PARTIAL | 32 automated tests pass; complete integration/e2e/security matrix absent |
+| 27 | PARTIAL | 33 automated tests pass; complete integration/e2e/security matrix absent |
 | 28–32 | NOT TESTED/PARTIAL | No clean Ubuntu/performance lab; minimal role-specific UI only |
 | 33–34 | PASS | Core documentation set and open-source audit present; guides disclose missing functions |
 | 35 | PASS | Evidence-based review below; does not imply features pass |
@@ -49,7 +49,7 @@ Unimplemented: working PHP/Laravel/CodeIgniter deployment; Python/Flask/Django/G
 Executed on Windows with Node.js 24.17.0 on 2026-09-13:
 
 - `npm run lint`: PASS.
-- `npm test`: PASS, 32 tests, 0 failures.
+- `npm test`: PASS, 33 tests, 0 failures.
 - Live authentication, dashboard, package creation, user creation, and health workflow: PASS; health returned version `0.2.0` and no password hash leaked.
 - Ubuntu installer/systemd/Nginx/UFW/API health: PASS from the administrator-provided Ubuntu 24.04 transcript for commit `51ef42b`; the newer domain provisioner is NOT TESTED on Ubuntu.
 

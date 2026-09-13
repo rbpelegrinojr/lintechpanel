@@ -25,6 +25,9 @@ Phase: transactional static-domain provisioning milestone.
 - Added owner-scoped failed-job retry (maximum five attempts), visible safe failure diagnostics, provisioning-state badges, and removal of the non-functional generic job form.
 - Installer reruns now stop panel services before replacing application files and prepare shadow-utils account files before restarting.
 - Validation: 32 tests pass, including managed-account idempotency and cross-tenant retry authorization.
+- Fixed `EACCES /run/lintech-panel/agent.sock` by assigning socket ownership inside the agent, ordering the worker after the agent, restarting services sequentially during installation, and retrying only bounded pre-connect socket failures.
+- Added `PHASE_STATUS.md` as the Phase 0–36 completion and resumption ledger.
+- Validation: 33 tests pass, including agent-socket retry classification.
 
 ## 0.2.0 — 2026-09-13
 

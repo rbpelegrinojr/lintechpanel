@@ -2,7 +2,9 @@
 
 LinTech Panel is an AGPL-licensed, provider-independent shared-hosting control-plane project for Ubuntu Server 24.04. Version 0.2.0 plus the current development changes provides a role-aware management dashboard/API, secure authentication, backend RBAC, hosting packages and domain quotas, user lifecycle operations, tenant-scoped domains/jobs/files, notifications, audit views, an allowlisted privileged agent, transactional static Nginx provisioning, PostgreSQL schema, installer assets, and automated security tests.
 
-It is **development ready**, not production ready. PHP/Python/Node deployment runners, databases, automated TLS, mail, terminal, IDE, backup/restore, operating-system quota enforcement, and full Linux isolation are not complete.
+It is **development ready**, not production ready. Static/React, PHP, Python, Node, and customer-site TLS provisioning now have integrated development implementations, but require broader Ubuntu validation. Databases, mail, terminal, IDE, backup/restore, complete operating-system quota enforcement, and full Linux isolation are not complete.
+
+See [`PHASE_STATUS.md`](PHASE_STATUS.md) for the durable Phase 0–36 completion ledger, evidence, remaining work, and resume order.
 
 ## Local development
 
