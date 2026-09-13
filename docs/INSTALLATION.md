@@ -1,6 +1,6 @@
 # Installation on Ubuntu 24.04
 
-> Version 0.1.0 is an evaluation build. Do not expose it to untrusted hosting customers.
+> Version 0.2.0 is a development build. Do not expose it to untrusted hosting customers.
 
 ## Requirements
 
@@ -35,7 +35,7 @@ sudo bash installer/install.sh --hostname panel.example.com --admin-email admin@
 
 Set `LINTECH_ADMIN_PASSWORD` only from a protected automation environment if no TTY is available; remove it immediately afterward.
 
-The installer is safe to rerun after a partial installation: it preserves an existing super administrator and agent secret, replaces application files, reloads units, and restarts panel services. The entered administrator password is ignored when an administrator already exists.
+The installer is safe to rerun after a partial installation or development upgrade: it preserves an existing super administrator, agent secret, and LinTech Nginx virtual host (including operator-managed Certbot TLS), replaces application files, reloads units, and restarts panel services. The entered administrator password is ignored when an administrator already exists.
 
 ## Verification and first login
 
@@ -45,7 +45,7 @@ LINTECH_URL=http://127.0.0.1:8080 sudo node /opt/lintech-panel/scripts/doctor.js
 sudo nginx -t
 ```
 
-Before entering credentials remotely, install a trusted TLS certificate and configure the Nginx 443 listener. TLS automation is not implemented in 0.1.0. On first login, replace the bootstrap password when the password-change workflow becomes available; in this release, recreate the development data on a clean evaluation host instead. Do not use the bootstrap account for production.
+Before entering credentials remotely, install a trusted TLS certificate and configure the Nginx 443 listener. TLS automation is not implemented in 0.2.0. On first login, the panel directs bootstrap accounts to the implemented Account password-change screen. Do not use this development release for untrusted production tenants.
 
 ## Initial security checklist
 

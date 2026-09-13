@@ -1,8 +1,8 @@
-# LinTech Panel 0.1.0 — Final Project Report
+# LinTech Panel 0.2.0 — Project Status Report
 
 ## 1. Executive summary
 
-This repository started empty. Version 0.1.0 establishes a runnable, tested, security-first development baseline: browser dashboard, HTTP API, authentication/session/CSRF controls, backend RBAC, tenant-scoped users/domains/jobs/files, a strictly allowlisted local privileged agent, worker, PostgreSQL schema, Ubuntu installer assets, deployment hardening, and operations/security documentation.
+Version 0.2.0 extends the security-first development baseline with a functional role-aware control panel, hosting-package and domain-quota enforcement, user lifecycle management, password rotation/session revocation, dashboard summaries, notifications, and scoped audit access. The privileged agent, worker, PostgreSQL schema, Ubuntu installer assets, and deployment hardening remain in place.
 
 It is **DEVELOPMENT READY**, not beta or production ready. The broad hosting feature set requested is represented in the architecture and roadmap, but unfinished functionality is reported as partial or fail—not as implemented merely because an endpoint or document exists.
 
@@ -31,14 +31,14 @@ Unimplemented: working PHP/Laravel/CodeIgniter deployment; Python/Flask/Django/G
 | Phase | Result | Evidence/limitation |
 |---:|:---:|---|
 | 0 | PASS | `ARCHITECTURE.md`, `SECURITY.md`, threat/isolation/deployment decisions |
-| 1 | PARTIAL | Auth/RBAC/users/dashboard exist; packages, password lifecycle, OS orchestration incomplete |
+| 1 | PARTIAL | Auth/RBAC/users/packages/dashboard/password changes are integrated; reset email, TOTP, and Linux-user orchestration remain incomplete |
 | 2–7 | PARTIAL | Domain/job/schema architecture exists; actual Nginx/TLS/runtime/database provisioners absent |
 | 8 | PARTIAL | Confined list/read/write; remaining file/archive operations absent |
 | 9–15 | FAIL | IDE, terminal, mail, cron, Git, backups, monitoring not implemented |
 | 16–19 | PARTIAL | Job/audit/notification structures; production queue/tokens/delivery absent |
 | 20 | PARTIAL | Installer and units implemented but not executed on Ubuntu; customer stacks/TLS/DB omitted |
 | 21–26 | PARTIAL | Install/manual/update/migration/DR/security docs and scripts; external drills absent |
-| 27 | PARTIAL | 9 automated tests pass; complete unit/integration/e2e/security matrix absent |
+| 27 | PARTIAL | 14 automated tests pass; complete integration/e2e/security matrix absent |
 | 28–32 | NOT TESTED/PARTIAL | No clean Ubuntu/performance lab; minimal role-specific UI only |
 | 33–34 | PASS | Core documentation set and open-source audit present; guides disclose missing functions |
 | 35 | PASS | Evidence-based review below; does not imply features pass |
@@ -49,8 +49,8 @@ Unimplemented: working PHP/Laravel/CodeIgniter deployment; Python/Flask/Django/G
 Executed on Windows with Node.js 24.17.0 on 2026-09-13:
 
 - `npm run lint`: PASS.
-- `npm test`: PASS, 9 tests, 0 failures.
-- Live `GET http://127.0.0.1:18080/api/health`: PASS, returned `{status:"ok",version:"0.1.0"}`.
+- `npm test`: PASS, 14 tests, 0 failures.
+- Live authentication, dashboard, package creation, user creation, and health workflow: PASS; health returned version `0.2.0` and no password hash leaked.
 - Ubuntu installer/systemd/Nginx/UFW: NOT TESTED (host is Windows).
 
 Covered: scrypt verification, malformed domain rejection, archive traversal, path confinement, tenant ownership, agent allowlist/arguments, login/CSRF, role escalation, and cross-customer domain visibility. Not covered: real Linux users/permissions/cgroups, Nginx rollback, runtimes, databases, SSL, mail, backup restore, websocket terminal, load, browser E2E, or fresh-host installation.

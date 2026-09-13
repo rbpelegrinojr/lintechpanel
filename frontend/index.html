@@ -1,4 +1,40 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LinTech Panel</title><link rel="stylesheet" href="/styles.css"></head>
-<body><main><section class="brand"><span class="mark">LT</span><div><h1>LinTech Panel</h1><p>Secure hosting operations, without the clutter.</p></div></section><section class="card" id="login"><h2>Sign in</h2><form><label>Username<input name="username" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button>Continue</button><p role="alert" id="error"></p></form></section><section class="card hidden" id="dashboard"><div class="top"><div><p class="eyebrow">OVERVIEW</p><h2 id="welcome">Dashboard</h2></div><button class="secondary" id="logout">Sign out</button></div><div class="grid"><article><span>Domains</span><strong id="domains">—</strong></article><article><span>Jobs</span><strong id="jobs">—</strong></article><article><span>Security</span><strong>Protected</strong></article></div><h3>Recent jobs</h3><div id="job-list" class="empty">No jobs yet.</div></section></main><script type="module" src="/app.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071019">
+  <title>LinTech Panel</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="login-shell" id="login-shell">
+    <section class="identity">
+      <span class="logo">LT</span>
+      <div><p class="kicker">LINTECH SYSTEMS</p><h1>Hosting operations,<br>under control.</h1><p>Secure account and infrastructure management for your Ubuntu server.</p></div>
+    </section>
+    <section class="panel login-panel">
+      <p class="kicker">CONTROL PANEL</p><h2>Welcome back</h2><p class="muted">Sign in with your administrator, reseller, or customer account.</p>
+      <form id="login-form">
+        <label>Username<input name="username" autocomplete="username" required></label>
+        <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+        <button type="submit">Sign in</button><p class="message error" role="alert" id="login-error"></p>
+      </form>
+    </section>
+  </main>
 
+  <div class="app-shell hidden" id="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand"><span class="logo small">LT</span><div><strong>LinTech</strong><span>Panel</span></div></div>
+      <nav id="navigation" aria-label="Primary navigation"></nav>
+      <div class="sidebar-user"><span class="avatar" id="avatar">L</span><div><strong id="sidebar-name">User</strong><span id="sidebar-role">Role</span></div></div>
+    </aside>
+    <main class="workspace">
+      <header class="workspace-header"><div><p class="kicker" id="view-kicker">CONTROL CENTER</p><h1 id="view-title">Overview</h1></div><div class="header-actions"><button class="ghost" id="refresh">Refresh</button><button class="ghost" id="logout">Sign out</button></div></header>
+      <div id="notice" class="notice hidden" role="status"></div>
+      <section id="content" aria-live="polite"></section>
+    </main>
+  </div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

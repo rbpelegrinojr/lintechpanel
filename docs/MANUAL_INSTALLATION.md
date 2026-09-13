@@ -13,5 +13,4 @@ This describes the components installed by `installer/install.sh` so an administ
 9. Configure TLS manually, then allow only SSH and Nginx through UFW. Do not expose port 8080, databases, worker, or agent.
 10. Enable services and execute `scripts/doctor.js`.
 
-The PostgreSQL migration is architectural in 0.1.0; the runnable API does not yet use it. MariaDB/PostgreSQL customer services, PHP runtimes, Python virtual environments, Node version management, Redis, phpMyAdmin, and pgAdmin are not installed. Any manual deployment claiming otherwise is inconsistent with this release.
-
+The PostgreSQL migrations are architectural in 0.2.0; the runnable API does not yet use them. MariaDB/PostgreSQL customer services, PHP runtimes, Python virtual environments, Node version management, Redis, phpMyAdmin, and pgAdmin are not installed. Any manual deployment claiming otherwise is inconsistent with this release.

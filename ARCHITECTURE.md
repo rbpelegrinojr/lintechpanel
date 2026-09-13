@@ -2,9 +2,9 @@
 
 ## Status and decision record
 
-Version 0.1.0 is a security-first development baseline, not a finished hosting panel. It uses a dependency-light Node.js 18+ API and worker so its security core can be tested without a package supply chain. The browser client is plain accessible HTML/CSS/JavaScript for the same reason. PostgreSQL is the selected production control-plane database; `migrations/001_initial.sql` is the initial schema, while the runnable development build currently uses an atomic mode-0600 JSON store. PostgreSQL integration is therefore not complete.
+Version 0.2.0 is a security-first core-management milestone, not a finished hosting panel. It uses a dependency-light Node.js 18+ API and worker so its security core can be tested without a package supply chain. The browser client is accessible HTML/CSS/JavaScript for the same reason. PostgreSQL is the selected production control-plane database; numbered migrations define the schema, while the runnable development build currently uses an atomic mode-0600 JSON store. PostgreSQL integration is therefore not complete.
 
-MariaDB is the selected MySQL-compatible customer database. Native MySQL is omitted because co-installing it with MariaDB adds conflicts without a core capability benefit. PostgreSQL administration should use pgAdmin behind independent authentication; MariaDB administration may use phpMyAdmin. Neither GUI is installed in 0.1.0.
+MariaDB is the selected MySQL-compatible customer database. Native MySQL is omitted because co-installing it with MariaDB adds conflicts without a core capability benefit. PostgreSQL administration should use pgAdmin behind independent authentication; MariaDB administration may use phpMyAdmin. Neither GUI is installed in 0.2.0.
 
 Systemd is selected over PM2 for application supervision because it provides native cgroup v2 controls, predictable privilege boundaries, journald integration, and no global JavaScript process-manager control plane. Redis/RabbitMQ are deferred: durable PostgreSQL jobs are preferred to reduce exposed services. The current worker uses the development store.
 
@@ -38,4 +38,3 @@ Ubuntu 24.04 uses Nginx, three systemd services, `/opt/lintech-panel` read-only 
 ## Nginx configuration transaction
 
 Generated configuration must be emitted from owned templates to a temporary file, syntax checked with `nginx -t`, atomically activated, and rolled back if reload fails. Raw customer Nginx text is never accepted. The agent currently exposes only test-and-reload; template generation and rollback are outstanding.
-

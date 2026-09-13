@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.2.0 — 2026-09-13
+
+Phase: core panel management milestone.
+
+- Added a role-aware administrator, reseller, and customer dashboard with working navigation and responsive management screens.
+- Added hosting-package CRUD and validated limits with secure-default customer domain quota enforcement.
+- Added user create/update/suspend/unsuspend/password-reset/guarded-delete operations and reseller ownership boundaries.
+- Added authenticated password changes with other-session revocation, notifications, dashboard summaries, and scoped audit views.
+- Added the second PostgreSQL migration and expanded API/security coverage from 10 to 14 passing tests.
+- Verified live HTTP login, dashboard, package creation, user creation, safe response serialization, and the hardened API health endpoint.
+- Upgrade safety: installer reruns now preserve the existing LinTech Nginx virtual host and operator-managed Certbot TLS configuration.
+
 - Repository: added `.gitignore` and line-ending rules, documented `config/`, `packaging/`, and the cross-component test hierarchy, and corrected the public clone URL.
 - Licensing: replaced the abbreviated notice with the complete canonical AGPLv3 license text.
 - Installer: fixed administrator bootstrap on Ubuntu's Node.js 18 package by importing `randomUUID` explicitly, corrected the post-clone directory name in installation commands, and made the API service use V8's JIT-less mode so the executable-memory systemd restriction can remain enabled.

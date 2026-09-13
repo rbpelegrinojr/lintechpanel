@@ -1,6 +1,6 @@
 {
   "name": "lintech-panel",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "engines": { "node": ">=18" },
@@ -11,7 +11,7 @@
     "bootstrap": "node scripts/bootstrap-admin.js",
     "doctor": "node scripts/doctor.js",
     "test": "node --test",
-    "lint": "node --check backend/src/server.js && node --check backend/src/app.js && node --check backend/src/store.js && node --check agent/src/agent.js && node --check agent/src/operations.js && node --check worker/src/worker.js && node --check scripts/bootstrap-admin.js && node --check scripts/doctor.js"
+    "lint": "node --check backend/src/server.js && node --check backend/src/app.js && node --check backend/src/store.js && node --check agent/src/agent.js && node --check agent/src/operations.js && node --check worker/src/worker.js && node --check scripts/bootstrap-admin.js && node --check scripts/doctor.js && node --check frontend/app.js"
   },
   "license": "AGPL-3.0-only"
 }

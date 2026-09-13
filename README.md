@@ -1,8 +1,8 @@
 # LinTech Panel
 
-LinTech Panel is an AGPL-licensed, provider-independent shared-hosting control-plane project for Ubuntu Server 24.04. Version 0.1.0 provides a runnable development dashboard/API, secure authentication primitives, backend RBAC, tenant-scoped domains/jobs/files, an allowlisted privileged agent, a basic worker, PostgreSQL schema, installer assets, and automated security tests.
+LinTech Panel is an AGPL-licensed, provider-independent shared-hosting control-plane project for Ubuntu Server 24.04. Version 0.2.0 provides a role-aware management dashboard/API, secure authentication, backend RBAC, hosting packages and domain quotas, user lifecycle operations, tenant-scoped domains/jobs/files, notifications, audit views, an allowlisted privileged agent, a basic worker, PostgreSQL schema, installer assets, and automated security tests.
 
-It is **development ready**, not production ready. PHP/Python/Node deployment runners, databases, TLS automation, mail, terminal, IDE, backup/restore, quotas, and full Linux isolation are not complete.
+It is **development ready**, not production ready. PHP/Python/Node deployment runners, databases, automated TLS, mail, terminal, IDE, backup/restore, operating-system quota enforcement, and full Linux isolation are not complete.
 
 ## Local development
 
@@ -29,4 +29,4 @@ cd lintechpanel
 sudo bash installer/install.sh
 ```
 
-The current installer results in an HTTP development deployment; TLS issuance and production hardening are external/manual in 0.1.0. See `docs/INSTALLATION.md` and `FINAL_REPORT.md` before use.
+The installer deploys the current development release; TLS issuance remains external/manual in 0.2.0. See `docs/INSTALLATION.md` and `FINAL_REPORT.md` before use.

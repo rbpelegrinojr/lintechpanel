@@ -24,4 +24,7 @@ export class Store {
   audit(actorId, action, target, result = 'success', metadata = {}) {
     this.data.audit.push({ id: this.id('aud'), actorId, action, target, result, metadata, at: new Date().toISOString() });
   }
+  notify(ownerId, kind, title, body) {
+    this.data.notifications.push({ id: this.id('not'), ownerId, kind, title, body, readAt: null, createdAt: new Date().toISOString() });
+  }
 }
