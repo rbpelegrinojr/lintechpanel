@@ -17,6 +17,9 @@ Phase: transactional static-domain provisioning milestone.
 - Validation: 26 tests pass; live pip, Gunicorn, systemd, and Nginx execution remains externally unvalidated on Ubuntu.
 - Added Phase 5 Node.js 18 application provisioning with validated relative entrypoints, tenant-owned npm dependency/build execution, hardened systemd services, Unix-socket Nginx/WebSocket proxying, start/stop/restart/remove controls, TLS preservation, starter generation, and HTTP health checks.
 - Validation: 28 tests pass; live npm/systemd deployment remains externally unvalidated on Ubuntu.
+- Added Phase 6 React publishing with a real React 19/Vite 6 starter compatible with the current Node 18 target, tenant-owned dependency/build execution, configurable confined output directories, symlink/file-count/size validation, atomic public-tree replacement and rollback, and deployment size metadata.
+- Added Nginx `disable_symlinks if_not_owner` defenses to static and PHP document roots.
+- Validation: 30 tests pass; real npm registry/build/Nginx publication remains externally unvalidated on Ubuntu.
 
 ## 0.2.0 — 2026-09-13
 

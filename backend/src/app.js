@@ -285,7 +285,7 @@ export function createApplication(store, options = {}) {
 
     if (method === 'GET' && pathname === '/api/applications') return json(200, visibleResources(actor, store.data.applications));
     if (method === 'POST' && pathname === '/api/applications') {
-      if (!['php', 'python', 'node'].includes(body.kind)) throw new InputError('unsupported application type');
+      if (!['php', 'python', 'node', 'react'].includes(body.kind)) throw new InputError('unsupported application type');
       const domain = store.data.domains.find(item => item.id === body.domainId);
       if (!domain) throw new NotFoundError('domain not found');
       requireOwner(actor, domain);
@@ -301,18 +301,21 @@ export function createApplication(store, options = {}) {
       if (body.kind === 'python' && body.pythonVersion !== '3.12') throw new InputError('unsupported Python version');
       if (body.kind === 'python' && !['flask', 'django', 'generic_wsgi'].includes(body.framework)) throw new InputError('unsupported Python framework');
       if (body.kind === 'node' && body.nodeVersion !== '18') throw new InputError('unsupported Node.js version');
+      if (body.kind === 'react' && body.nodeVersion !== '18') throw new InputError('unsupported Node.js version');
       const entrypoint = body.kind === 'node' ? String(body.entrypoint || 'server.js') : null;
       if (entrypoint && (!/^[A-Za-z0-9_][A-Za-z0-9_./-]{0,126}\.(?:js|mjs|cjs)$/.test(entrypoint) || entrypoint.split('/').includes('..'))) throw new InputError('invalid Node.js entrypoint');
+      const outputDir = body.kind === 'react' ? String(body.outputDir || 'dist') : null;
+      if (outputDir && (!/^[A-Za-z0-9_][A-Za-z0-9_./-]{0,126}$/.test(outputDir) || outputDir.split('/').includes('..'))) throw new InputError('invalid build output directory');
       const defaultStartup = body.framework === 'django' ? 'lintech_project.wsgi:application' : 'wsgi:app';
       const startup = body.kind === 'python' ? String(body.startup || defaultStartup) : null;
       if (startup && !WSGI_TARGET.test(startup)) throw new InputError('invalid WSGI startup target');
-      const runtime = body.kind === 'php' ? `php-${body.phpVersion}` : body.kind === 'python' ? `python-${body.pythonVersion}` : `node-${body.nodeVersion}`;
-      const application = { id: store.id('app'), ownerId: owner.id, resellerId: domain.resellerId, domainId: domain.id, name: domain.name, kind: body.kind, runtime, framework: body.framework || null, startup, entrypoint, status: 'queued', createdAt: timestamp(), updatedAt: timestamp() };
+      const runtime = body.kind === 'php' ? `php-${body.phpVersion}` : body.kind === 'python' ? `python-${body.pythonVersion}` : body.kind === 'node' ? `node-${body.nodeVersion}` : `react-node-${body.nodeVersion}`;
+      const application = { id: store.id('app'), ownerId: owner.id, resellerId: domain.resellerId, domainId: domain.id, name: domain.name, kind: body.kind, runtime, framework: body.framework || null, startup, entrypoint, outputDir, status: 'queued', createdAt: timestamp(), updatedAt: timestamp() };
       store.data.applications.push(application);
       const common = { appId: application.id, siteId: domain.id, domain: domain.name, username: owner.systemUsername || owner.username, framework: body.framework, tls: domain.ssl === 'active', forceHttps: domain.forceHttps !== false };
       const resources = { memoryMb: packageById(owner.packageId)?.limits.memoryMb, cpuPercent: packageById(owner.packageId)?.limits.cpuPercent, processes: packageById(owner.packageId)?.limits.processes };
-      const jobInput = body.kind === 'php' ? { ...common, phpVersion: body.phpVersion } : body.kind === 'python' ? { ...common, pythonVersion: body.pythonVersion, startup, ...resources } : { ...common, nodeVersion: body.nodeVersion, entrypoint, ...resources };
-      enqueue(owner.id, body.kind === 'php' ? 'create_php_site' : body.kind === 'python' ? 'create_python_app' : 'create_node_app', jobInput, application.id, domain.resellerId);
+      const jobInput = body.kind === 'php' ? { ...common, phpVersion: body.phpVersion } : body.kind === 'python' ? { ...common, pythonVersion: body.pythonVersion, startup, ...resources } : body.kind === 'node' ? { ...common, nodeVersion: body.nodeVersion, entrypoint, ...resources } : { ...common, nodeVersion: body.nodeVersion, outputDir };
+      enqueue(owner.id, body.kind === 'php' ? 'create_php_site' : body.kind === 'python' ? 'create_python_app' : body.kind === 'node' ? 'create_node_app' : 'deploy_react_app', jobInput, application.id, domain.resellerId);
       store.audit(actor.id, 'application.create', application.id, 'success', { kind: body.kind, framework: body.framework }); await store.save();
       return json(202, application);
     }
@@ -327,8 +330,8 @@ export function createApplication(store, options = {}) {
       if (!domain || !owner) throw new NotFoundError('application resources are incomplete');
       application.status = 'deleting'; application.updatedAt = timestamp();
       const common = { appId: application.id, siteId: domain.id, domain: domain.name, username: owner.systemUsername || owner.username, framework: application.framework, tls: domain.ssl === 'active', forceHttps: domain.forceHttps !== false };
-      const jobInput = application.kind === 'php' ? { ...common, phpVersion: application.runtime.replace('php-', '') } : application.kind === 'python' ? { ...common, pythonVersion: application.runtime.replace('python-', ''), startup: application.startup } : { ...common, nodeVersion: application.runtime.replace('node-', ''), entrypoint: application.entrypoint };
-      enqueue(owner.id, application.kind === 'php' ? 'delete_php_site' : application.kind === 'python' ? 'delete_python_app' : 'delete_node_app', jobInput, application.id, application.resellerId);
+      const jobInput = application.kind === 'php' ? { ...common, phpVersion: application.runtime.replace('php-', '') } : application.kind === 'python' ? { ...common, pythonVersion: application.runtime.replace('python-', ''), startup: application.startup } : application.kind === 'node' ? { ...common, nodeVersion: application.runtime.replace('node-', ''), entrypoint: application.entrypoint } : { ...common, nodeVersion: application.runtime.replace('react-node-', ''), outputDir: application.outputDir };
+      enqueue(owner.id, application.kind === 'php' ? 'delete_php_site' : application.kind === 'python' ? 'delete_python_app' : application.kind === 'node' ? 'delete_node_app' : 'delete_react_app', jobInput, application.id, application.resellerId);
       store.audit(actor.id, 'application.delete_requested', application.id); await store.save();
       return json(202, application);
     }

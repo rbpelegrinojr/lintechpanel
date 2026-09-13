@@ -5,6 +5,7 @@ import { renderStaticSite, sitePaths, validateSite } from './nginx.js';
 import { phpPoolPath, renderPhpPool, renderPhpSite, validatePhpSite } from './php.js';
 import { pythonPaths, renderPythonSite, renderPythonUnit, starterSource, validatePythonApp } from './python.js';
 import { nodeAppPaths, nodeStarter, renderNodeSite, renderNodeUnit, validateNodeApp } from './node-app.js';
+import { inspectBuildTree, reactPaths, reactStarterFiles, validateReactApp } from './react.js';
 
 const USER = /^[a-z][a-z0-9_-]{2,31}$/;
 const ID = /^[a-z][a-z0-9_-]{2,63}$/;
@@ -71,6 +72,8 @@ export const schemas = Object.freeze({
   create_node_app: args => ({ ...validateNodeApp(args), tls: args.tls === true, forceHttps: args.forceHttps !== false, memoryMb: args.memoryMb, cpuPercent: args.cpuPercent, processes: args.processes }),
   delete_node_app: args => ({ ...validateNodeApp(args), tls: args.tls === true, forceHttps: args.forceHttps !== false }),
   control_node_app: args => ({ ...validateNodeApp(args), action: assert(args.action, /^(start|stop|restart)$/, 'application action') }),
+  deploy_react_app: args => validateReactApp(args),
+  delete_react_app: args => validateReactApp(args),
   nginx_test_reload: args => ({ siteId: assert(args.siteId, ID, 'site id') })
 });
 
@@ -273,6 +276,30 @@ export async function executeOperation(operation, rawArgs, config = {}) {
     catch (error) { await fs.writeFile(locations.available, previousSite, { mode: 0o644 }); await fs.writeFile(appPaths.unit, previousUnit, { mode: 0o644 }); await run('/usr/bin/systemctl', ['daemon-reload']).catch(() => {}); throw error; }
   }
   if (operation === 'control_node_app') { const appPaths = nodeAppPaths(args, config.unitRoot); await fs.access(appPaths.unit); await run('/usr/bin/systemctl', [args.action, appPaths.service]); return { status: args.action === 'stop' ? 'stopped' : 'active' }; }
+  if (operation === 'deploy_react_app') {
+    const appPaths = reactPaths(args); await fs.mkdir(appPaths.root, { recursive: true, mode: 0o750 }); await run('/usr/bin/chown', ['-R', `${args.username}:${args.username}`, appPaths.root]);
+    const packageFile = path.join(appPaths.root, 'package.json');
+    try { await fs.access(packageFile); }
+    catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      for (const [relative, contents] of Object.entries(reactStarterFiles())) { const target = path.join(appPaths.root, relative); await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o750 }); await fs.writeFile(target, contents, { mode: 0o640, flag: 'wx' }); }
+      await run('/usr/bin/chown', ['-R', `${args.username}:${args.username}`, appPaths.root]);
+    }
+    const locked = await fs.access(path.join(appPaths.root, 'package-lock.json')).then(() => true).catch(() => false);
+    await run('/usr/sbin/runuser', ['-u', args.username, '--', '/usr/bin/npm', locked ? 'ci' : 'install', '--no-audit', '--no-fund'], { cwd: appPaths.root, timeoutMs: 180_000 });
+    await run('/usr/sbin/runuser', ['-u', args.username, '--', '/usr/bin/npm', 'run', 'build'], { cwd: appPaths.root, timeoutMs: 180_000 });
+    const build = await inspectBuildTree(appPaths.output);
+    const parent = path.dirname(appPaths.publicRoot); const staging = path.join(parent, `.lintech-publish-${process.pid}`); const previous = path.join(parent, `.lintech-previous-${process.pid}`);
+    await fs.mkdir(staging, { mode: 0o750 });
+    try {
+      await fs.cp(appPaths.output, staging, { recursive: true, force: false, errorOnExist: true }); await run('/usr/bin/chown', ['-R', `${args.username}:${args.username}`, staging]);
+      let hadPrevious = false; try { await fs.rename(appPaths.publicRoot, previous); hadPrevious = true; } catch (error) { if (error.code !== 'ENOENT') throw error; }
+      try { await fs.rename(staging, appPaths.publicRoot); await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']); }
+      catch (error) { await fs.rm(appPaths.publicRoot, { recursive: true, force: true }); if (hadPrevious) await fs.rename(previous, appPaths.publicRoot); throw error; }
+      await fs.rm(previous, { recursive: true, force: true }); return { active: true, files: build.files, bytes: build.bytes, outputDir: args.outputDir };
+    } finally { await fs.rm(staging, { recursive: true, force: true }); }
+  }
+  if (operation === 'delete_react_app') return { active: false, filesPreserved: true };
   if (operation === 'nginx_test_reload') {
     await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']); return { ok: true };
   }

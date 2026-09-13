@@ -8,6 +8,8 @@ MariaDB is the selected MySQL-compatible customer database. Native MySQL is omit
 
 Systemd is selected over PM2 for application supervision because it provides native cgroup v2 controls, predictable privilege boundaries, journald integration, and no global JavaScript process-manager control plane. PHP uses one generated PHP-FPM pool per site under the customer's private Linux identity and a dedicated Unix socket consumed by Nginx. Python uses a per-application virtual environment and hardened Gunicorn unit; Node uses a validated entrypoint and hardened native Node unit. Both receive hosting-package-derived `MemoryMax`, `CPUQuota`, and `TasksMax`, and Nginx reaches them only through per-app Unix sockets. Redis/RabbitMQ are deferred: durable PostgreSQL jobs are preferred to reduce exposed services. The current worker uses the locked development store.
 
+React builds execute as the tenant and publish only from a validated relative output directory. The agent rejects symlinks, special files, excessive file counts, and oversized output before copying to a sibling staging directory; publication swaps the public tree atomically and restores the prior tree if validation or Nginx reload fails. Nginx document roots also use `disable_symlinks if_not_owner` as defense in depth.
+
 ## Trust boundaries
 
 ```text

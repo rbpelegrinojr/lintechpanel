@@ -16,7 +16,7 @@ export function validateSite(input) {
 }
 
 function staticLocations(home, domain) {
-  return `    root ${home}/websites/${domain}/public;\n    index index.html;\n    access_log ${home}/logs/${domain}.access.log;\n    error_log ${home}/logs/${domain}.error.log warn;\n    location / {\n        try_files $uri $uri/ =404;\n    }\n    location ~ /\\. { deny all; }`;
+  return `    root ${home}/websites/${domain}/public;\n    index index.html;\n    disable_symlinks if_not_owner from=$document_root;\n    access_log ${home}/logs/${domain}.access.log;\n    error_log ${home}/logs/${domain}.error.log warn;\n    location / {\n        try_files $uri $uri/ =404;\n    }\n    location ~ /\\. { deny all; }`;
 }
 
 export function renderStaticSite(input, options = {}) {

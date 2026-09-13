@@ -27,7 +27,7 @@ export function renderPhpPool(input) {
 }
 
 function phpLocations(appId, root) {
-  return `    root ${root};\n    index index.php index.html;\n    location / { try_files $uri $uri/ /index.php?$query_string; }\n    location ~ \\.php$ {\n        try_files $uri =404;\n        include fastcgi_params;\n        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;\n        fastcgi_pass unix:/run/php/lintech-${appId}.sock;\n    }\n    location ~ /\\. { deny all; }`;
+  return `    root ${root};\n    index index.php index.html;\n    disable_symlinks if_not_owner from=$document_root;\n    location / { try_files $uri $uri/ /index.php?$query_string; }\n    location ~ \\.php$ {\n        try_files $uri =404;\n        include fastcgi_params;\n        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;\n        fastcgi_pass unix:/run/php/lintech-${appId}.sock;\n    }\n    location ~ /\\. { deny all; }`;
 }
 
 export function renderPhpSite(input, options = {}) {

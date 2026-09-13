@@ -133,5 +133,10 @@ test('domain lifecycle queues scoped privileged jobs and prevents overlap', asyn
   assert.equal(nodeApplication.body.entrypoint, 'src/server.js');
   assert.equal(f.store.data.jobs.at(-1).type, 'create_node_app');
   await assert.rejects(f.app({ method: 'POST', pathname: '/api/applications', headers: headers(outsider), body: { domainId: record.id, kind: 'node', nodeVersion: '18', entrypoint: '../bad.js' } }), /already has|invalid Node/);
+  f.store.data.applications = [];
+  const react = await f.app({ method: 'POST', pathname: '/api/applications', headers: headers(outsider), body: { domainId: record.id, kind: 'react', nodeVersion: '18', outputDir: 'dist' } });
+  assert.equal(react.status, 202);
+  assert.equal(react.body.outputDir, 'dist');
+  assert.equal(f.store.data.jobs.at(-1).type, 'deploy_react_app');
   await fs.rm(f.dir, { recursive: true });
 });
