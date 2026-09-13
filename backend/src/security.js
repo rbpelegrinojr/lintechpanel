@@ -65,7 +65,7 @@ export async function verifyPassword(password, encoded) {
 export function token(bytes = 32) { return randomBytes(bytes).toString('base64url'); }
 export function tokenHash(value) { return createHash('sha256').update(value).digest('hex'); }
 export function publicUser(user) {
-  const { passwordHash, ...safe } = user;
+  const { passwordHash, systemUsername, ...safe } = user;
   return safe;
 }
 
@@ -73,4 +73,3 @@ export class InputError extends Error { constructor(message) { super(message); t
 export class AuthError extends Error { constructor(message = 'authentication required') { super(message); this.status = 401; } }
 export class ForbiddenError extends Error { constructor(message = 'forbidden') { super(message); this.status = 403; } }
 export class NotFoundError extends Error { constructor(message = 'not found') { super(message); this.status = 404; } }
-

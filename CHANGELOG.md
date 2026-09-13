@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+Phase: transactional static-domain provisioning milestone.
+
+- Connected domain and Linux-user lifecycle requests to the unprivileged worker and HMAC-authenticated Unix-socket agent.
+- Added validated static-site Nginx template generation, atomic activation, `nginx -t` before reload, rollback, enable/disable/delete operations, and protection against replacing foreign activation paths.
+- Added customer-facing domain lifecycle controls and rejected overlapping operations.
+- Added a cross-process state-file lock and reload-before-mutation protocol so API and worker writes do not silently overwrite each other while the PostgreSQL repository remains pending.
+- Corrected agent-socket group access in systemd and added tests for Nginx input safety, signed agent requests, domain job scoping, and concurrent state updates.
+- Validation: `npm run lint` passed; `npm test` passed 19 tests. Real privileged Nginx activation still requires disposable Ubuntu validation.
+
 ## 0.2.0 — 2026-09-13
 
 Phase: core panel management milestone.

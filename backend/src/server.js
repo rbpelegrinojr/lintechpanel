@@ -34,7 +34,10 @@ const server = http.createServer(async (req, res) => {
       for await (const chunk of req) { size += chunk.length; if (size > 1_048_576) throw Object.assign(new Error('request too large'), { status: 413 }); chunks.push(chunk); }
       if (size) body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
     } else if (url.searchParams.has('path')) body.path = url.searchParams.get('path');
-    const result = await app({ method: req.method, pathname: url.pathname, headers: req.headers, body, ip: req.socket.remoteAddress });
+    const result = await store.withLock(async () => {
+      await store.load();
+      return app({ method: req.method, pathname: url.pathname, headers: req.headers, body, ip: req.socket.remoteAddress });
+    });
     res.writeHead(result.status, { ...securityHeaders, ...result.headers }); res.end(result.body == null ? '' : JSON.stringify(result.body));
   } catch (error) {
     const status = Number(error.status) || (error instanceof SyntaxError ? 400 : 500);
@@ -44,4 +47,3 @@ const server = http.createServer(async (req, res) => {
   }
 });
 server.listen(port, host, () => console.log(`LinTech API listening on http://${host}:${port}`));
-

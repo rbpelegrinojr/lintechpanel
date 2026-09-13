@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { cleanDomain, cleanEmail, cleanText, cleanUsername, hashPassword, verifyPassword, token, tokenHash, publicUser, AuthError, ForbiddenError, InputError, NotFoundError } from './security.js';
-import { ROLES, canManageUser, requireRole } from './rbac.js';
+import { ROLES, canManageUser, requireOwner, requireRole } from './rbac.js';
 import { confinedPath } from './path-guard.js';
 import { normalizeLimits } from './limits.js';
 
@@ -48,6 +48,12 @@ export function createApplication(store, options = {}) {
     if (owner.role === ROLES.SUPER_ADMIN) return;
     const maximum = packageById(owner.packageId)?.limits?.[resource] ?? 0;
     if (current >= maximum) throw new ForbiddenError(`${resource} package limit reached`);
+  }
+
+  function enqueue(ownerId, type, input, resourceId = null, resellerId = null) {
+    const job = { id: store.id('job'), ownerId, resellerId, resourceId, type, status: 'queued', progress: 0, input, safeLogs: [], createdAt: timestamp() };
+    store.data.jobs.push(job);
+    return job;
   }
 
   return async function handle({ method, pathname, headers = {}, body = {}, ip = 'unknown' }) {
@@ -155,8 +161,11 @@ export function createApplication(store, options = {}) {
         const reseller = store.data.users.find(item => item.id === resellerId && item.role === ROLES.RESELLER);
         if (!reseller || (actor.role !== ROLES.SUPER_ADMIN && reseller.id !== actor.id)) throw new ForbiddenError('reseller assignment denied');
       }
-      const created = { id: store.id('usr'), username, email, role, resellerId, packageId, suspended: false, mustChangePassword: true, passwordHash: await hashPassword(body.password), createdAt: timestamp(), updatedAt: timestamp() };
+      const id = store.id('usr');
+      const systemUsername = role === ROLES.CUSTOMER ? `lt_${id.slice(-12)}` : null;
+      const created = { id, username, systemUsername, email, role, resellerId, packageId, suspended: false, mustChangePassword: true, systemStatus: role === ROLES.CUSTOMER ? 'queued' : 'not_required', passwordHash: await hashPassword(body.password), createdAt: timestamp(), updatedAt: timestamp() };
       store.data.users.push(created);
+      if (role === ROLES.CUSTOMER) enqueue(created.id, 'provision_user', { userId: created.id, username: created.systemUsername }, created.id, resellerId);
       store.notify(created.id, 'account', 'Account created', 'Your LinTech Panel account is ready. Change the temporary password after signing in.');
       store.audit(actor.id, 'user.create', created.id, 'success', { role }); await store.save();
       return json(201, publicUser(created));
@@ -213,14 +222,42 @@ export function createApplication(store, options = {}) {
       const owner = store.data.users.find(item => item.id === ownerId);
       if (!owner) throw new NotFoundError('owner not found');
       if (ownerId !== actor.id && !canManageUser(actor, owner)) throw new ForbiddenError();
+      if (owner.role !== ROLES.CUSTOMER) throw new InputError('domains must belong to a customer account');
       assertQuota(owner, 'domains', store.data.domains.filter(item => item.ownerId === ownerId).length);
-      const record = { id: store.id('dom'), name: domain, ownerId, resellerId: owner.resellerId || null, type: 'static', enabled: true, ssl: 'pending', createdAt: timestamp() };
+      const record = { id: store.id('dom'), name: domain, ownerId, resellerId: owner.resellerId || null, type: 'static', enabled: true, status: 'queued', ssl: 'pending', createdAt: timestamp() };
       store.data.domains.push(record);
+      enqueue(ownerId, 'create_domain', { siteId: record.id, domain: record.name, username: owner.systemUsername || owner.username }, record.id, record.resellerId);
       store.notify(ownerId, 'domain', 'Domain added', `${domain} was accepted and is awaiting provisioning.`);
       store.audit(actor.id, 'domain.create', record.id, 'success', { domain }); await store.save();
       return json(202, record);
     }
     if (method === 'GET' && pathname === '/api/domains') return json(200, visibleResources(actor, store.data.domains));
+    const domainAction = pathname.match(/^\/api\/domains\/([^/]+)\/(enable|disable)$/);
+    if (domainAction && method === 'POST') {
+      const record = store.data.domains.find(item => item.id === domainAction[1]);
+      if (!record) throw new NotFoundError();
+      requireOwner(actor, record);
+      if (['queued', 'deleting'].includes(record.status)) throw new InputError('domain operation already in progress');
+      const owner = store.data.users.find(item => item.id === record.ownerId);
+      if (!owner) throw new NotFoundError('owner not found');
+      record.status = 'queued'; record.enabled = domainAction[2] === 'enable';
+      enqueue(record.ownerId, `${domainAction[2]}_domain`, { siteId: record.id, domain: record.name, username: owner.systemUsername || owner.username }, record.id, record.resellerId);
+      store.audit(actor.id, `domain.${domainAction[2]}`, record.id); await store.save();
+      return json(202, record);
+    }
+    const domainMatch = pathname.match(/^\/api\/domains\/([^/]+)$/);
+    if (domainMatch && method === 'DELETE') {
+      const record = store.data.domains.find(item => item.id === domainMatch[1]);
+      if (!record) throw new NotFoundError();
+      requireOwner(actor, record);
+      if (['queued', 'deleting'].includes(record.status)) throw new InputError('domain operation already in progress');
+      const owner = store.data.users.find(item => item.id === record.ownerId);
+      if (!owner) throw new NotFoundError('owner not found');
+      record.status = 'deleting';
+      enqueue(record.ownerId, 'delete_domain', { siteId: record.id, domain: record.name, username: owner.systemUsername || owner.username }, record.id, record.resellerId);
+      store.audit(actor.id, 'domain.delete_requested', record.id); await store.save();
+      return json(202, record);
+    }
 
     if (method === 'POST' && pathname === '/api/jobs') {
       const allowed = ['deploy_php', 'deploy_python', 'deploy_node', 'deploy_static', 'issue_ssl', 'backup', 'restore', 'git_pull'];

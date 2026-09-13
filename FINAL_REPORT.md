@@ -22,7 +22,7 @@ Nginx proxies to an unprivileged dependency-light Node.js API. Durable operation
 
 ## 4. Partial and unimplemented features
 
-Partial: authentication (no reset/email verification/TOTP/password-change UI), RBAC/user management (no delete/update/package enforcement), domains/Nginx/SSL (records and validation primitive only), static deployment (development runner only), file manager (list/read/write only), jobs/audit/notifications (schema/baseline, incomplete durable delivery and UI), provisioning architecture, installer/update/recovery, dashboard/admin/customer/reseller experience, documentation.
+Partial: authentication (no reset email/email verification/TOTP), domains/Nginx/SSL (transactional static-site provisioning implemented but not Linux-validated; no automated TLS, redirects, reverse proxies, or subdomains), static deployment (document-root/Nginx provisioning without upload/build publishing), file manager (list/read/write only), jobs/audit/notifications (working development-store delivery but no PostgreSQL queue), provisioning, installer/update/recovery, dashboard/admin/customer/reseller experience, and documentation.
 
 Unimplemented: working PHP/Laravel/CodeIgniter deployment; Python/Flask/Django/Gunicorn manager; Node application manager; React build/publish; MariaDB/PostgreSQL customer lifecycle and administration GUIs; Monaco IDE; xterm/PTTY gateway; transactional or hosted mail; cron and Git management; real backup/restore/retention; metrics/log UI; SSL issuance/renewal; encrypted secret vault; API tokens; quotas/cgroups/AppArmor enforcement; webhook/email notifications; signed update channel; hosted-mail stack.
 
@@ -32,13 +32,13 @@ Unimplemented: working PHP/Laravel/CodeIgniter deployment; Python/Flask/Django/G
 |---:|:---:|---|
 | 0 | PASS | `ARCHITECTURE.md`, `SECURITY.md`, threat/isolation/deployment decisions |
 | 1 | PARTIAL | Auth/RBAC/users/packages/dashboard/password changes are integrated; reset email, TOTP, and Linux-user orchestration remain incomplete |
-| 2–7 | PARTIAL | Domain/job/schema architecture exists; actual Nginx/TLS/runtime/database provisioners absent |
+| 2–7 | PARTIAL | Static Nginx provisioner and worker-agent path implemented; TLS/runtime/database provisioners absent |
 | 8 | PARTIAL | Confined list/read/write; remaining file/archive operations absent |
 | 9–15 | FAIL | IDE, terminal, mail, cron, Git, backups, monitoring not implemented |
 | 16–19 | PARTIAL | Job/audit/notification structures; production queue/tokens/delivery absent |
-| 20 | PARTIAL | Installer and units implemented but not executed on Ubuntu; customer stacks/TLS/DB omitted |
+| 20 | PARTIAL | User-provided Ubuntu 24.04 installation evidence covers installer retry, services, Nginx, UFW, and API health; clean-host matrix and customer stacks remain unvalidated |
 | 21–26 | PARTIAL | Install/manual/update/migration/DR/security docs and scripts; external drills absent |
-| 27 | PARTIAL | 14 automated tests pass; complete integration/e2e/security matrix absent |
+| 27 | PARTIAL | 19 automated tests pass; complete integration/e2e/security matrix absent |
 | 28–32 | NOT TESTED/PARTIAL | No clean Ubuntu/performance lab; minimal role-specific UI only |
 | 33–34 | PASS | Core documentation set and open-source audit present; guides disclose missing functions |
 | 35 | PASS | Evidence-based review below; does not imply features pass |
@@ -49,9 +49,9 @@ Unimplemented: working PHP/Laravel/CodeIgniter deployment; Python/Flask/Django/G
 Executed on Windows with Node.js 24.17.0 on 2026-09-13:
 
 - `npm run lint`: PASS.
-- `npm test`: PASS, 14 tests, 0 failures.
+- `npm test`: PASS, 19 tests, 0 failures.
 - Live authentication, dashboard, package creation, user creation, and health workflow: PASS; health returned version `0.2.0` and no password hash leaked.
-- Ubuntu installer/systemd/Nginx/UFW: NOT TESTED (host is Windows).
+- Ubuntu installer/systemd/Nginx/UFW/API health: PASS from the administrator-provided Ubuntu 24.04 transcript for commit `51ef42b`; the newer domain provisioner is NOT TESTED on Ubuntu.
 
 Covered: scrypt verification, malformed domain rejection, archive traversal, path confinement, tenant ownership, agent allowlist/arguments, login/CSRF, role escalation, and cross-customer domain visibility. Not covered: real Linux users/permissions/cgroups, Nginx rollback, runtimes, databases, SSL, mail, backup restore, websocket terminal, load, browser E2E, or fresh-host installation.
 

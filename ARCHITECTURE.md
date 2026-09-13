@@ -19,7 +19,7 @@ Browser -> Nginx :443 -> API (unprivileged lintech user)
 Tenant traffic -> Nginx -> per-site PHP-FPM pool / per-app systemd unit / static root
 ```
 
-The agent has no TCP listener. Requests are framed JSON, authenticated with an HMAC key readable only by root and the service group, validated against an operation-specific schema, and executed with fixed binaries plus argument arrays (`shell:false`). There is no generic command operation. The API-to-agent client and most provisioners remain to be implemented.
+The agent has no TCP listener. Requests are framed JSON, authenticated with an HMAC key readable only by root and the service group, validated against an operation-specific schema, and executed with fixed binaries plus argument arrays (`shell:false`). There is no generic command operation. The worker-to-agent client and Linux-user/static-domain provisioners are implemented; runtime, database, TLS, backup, and other provisioners remain outstanding.
 
 ## Identity, authorization, and isolation
 
@@ -37,4 +37,6 @@ Ubuntu 24.04 uses Nginx, three systemd services, `/opt/lintech-panel` read-only 
 
 ## Nginx configuration transaction
 
-Generated configuration must be emitted from owned templates to a temporary file, syntax checked with `nginx -t`, atomically activated, and rolled back if reload fails. Raw customer Nginx text is never accepted. The agent currently exposes only test-and-reload; template generation and rollback are outstanding.
+Static-site configuration is emitted from an owned template to a temporary file, atomically activated, syntax checked with `nginx -t`, reloaded, and rolled back if validation or reload fails. Existing activation paths are accepted only when they are symlinks to the expected panel-owned file. Raw customer Nginx text is never accepted. Redirect, reverse-proxy, subdomain, and TLS templates remain outstanding.
+
+The JSON development store now uses an exclusive cross-process lock plus reload-before-mutation in the API and worker, preventing lost updates between those services. This is a reliability bridge, not the selected production database: PostgreSQL migrations, transactional claiming, persistent throttling, indexing, and operational backup are still required before production.

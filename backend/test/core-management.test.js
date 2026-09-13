@@ -32,6 +32,8 @@ test('administrator creates packages and package quotas are enforced', async () 
   const packageResponse = await f.app({ method: 'POST', pathname: '/api/packages', headers: headers(admin), body: { name: 'Starter', limits: { domains: 1, diskMb: 2048 } } });
   assert.equal(packageResponse.status, 201);
   const userResponse = await f.app({ method: 'POST', pathname: '/api/users', headers: headers(admin), body: { username: 'customer', email: 'customer@example.com', password: 'SecureCustomer7', packageId: packageResponse.body.id } });
+  assert.equal(userResponse.body.systemUsername, undefined);
+  assert.match(f.store.data.jobs.find(item => item.resourceId === userResponse.body.id).input.username, /^lt_[a-f0-9]{12}$/);
   const customer = await login(f.app, 'customer', 'SecureCustomer7');
   await f.app({ method: 'POST', pathname: '/api/domains', headers: headers(customer), body: { domain: 'one.example.com' } });
   await assert.rejects(f.app({ method: 'POST', pathname: '/api/domains', headers: headers(customer), body: { domain: 'two.example.com' } }), /limit reached/);
@@ -75,3 +77,27 @@ test('dashboard and audit responses are role scoped', async () => {
   await fs.rm(f.dir, { recursive: true });
 });
 
+test('domain lifecycle queues scoped privileged jobs and prevents overlap', async () => {
+  const f = await fixture();
+  const admin = await login(f.app, 'admin', 'SecureAdminPass7');
+  const reseller = await login(f.app, 'reseller', 'SecureReseller7');
+  const outsider = await login(f.app, 'outside', 'SecureOutside77');
+  const plan = await f.app({ method: 'POST', pathname: '/api/packages', headers: headers(admin), body: { name: 'Domain plan', limits: { domains: 2 } } });
+  await f.app({ method: 'PATCH', pathname: '/api/users/outside', headers: headers(admin), body: { packageId: plan.body.id } });
+
+  const created = await f.app({ method: 'POST', pathname: '/api/domains', headers: headers(outsider), body: { domain: 'site.example.com' } });
+  assert.equal(created.status, 202);
+  assert.equal(created.body.status, 'queued');
+  const createJob = f.store.data.jobs.find(item => item.resourceId === created.body.id);
+  assert.equal(createJob.type, 'create_domain');
+  assert.deepEqual(createJob.input, { siteId: created.body.id, domain: 'site.example.com', username: 'outside' });
+  await assert.rejects(f.app({ method: 'POST', pathname: `/api/domains/${created.body.id}/disable`, headers: headers(outsider), body: {} }), /already in progress/);
+  await assert.rejects(f.app({ method: 'DELETE', pathname: `/api/domains/${created.body.id}`, headers: headers(reseller), body: {} }), /forbidden/);
+
+  const record = f.store.data.domains.find(item => item.id === created.body.id);
+  record.status = 'active'; record.enabled = true;
+  const disabled = await f.app({ method: 'POST', pathname: `/api/domains/${record.id}/disable`, headers: headers(outsider), body: {} });
+  assert.equal(disabled.status, 202);
+  assert.equal(f.store.data.jobs.at(-1).type, 'disable_domain');
+  await fs.rm(f.dir, { recursive: true });
+});

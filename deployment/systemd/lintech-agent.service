@@ -8,6 +8,8 @@ Group=root
 WorkingDirectory=/opt/lintech-panel
 Environment=LINTECH_AGENT_SOCKET=/run/lintech-panel/agent.sock
 ExecStart=/bin/sh -c 'LINTECH_AGENT_SECRET=$(cat /etc/lintech-panel/agent.secret) exec /usr/bin/node /opt/lintech-panel/agent/src/agent.js'
+ExecStartPost=/bin/chgrp lintech /run/lintech-panel/agent.sock
+ExecStartPost=/bin/chmod 0660 /run/lintech-panel/agent.sock
 Restart=on-failure
 PrivateTmp=true
 ProtectSystem=strict

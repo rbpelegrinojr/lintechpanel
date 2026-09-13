@@ -129,10 +129,26 @@ async function domainsView() {
   const requests = [api('/domains')]; if (me.role !== 'customer') requests.push(api('/users'));
   const [domains, users = []] = await Promise.all(requests);
   const fields = [field('Domain name', 'domain', 'text', '', { required: true, placeholder: 'example.com' })];
-  if (me.role !== 'customer') fields.push(selectField('Owner', 'ownerId', [{ value: me.id, label: `${me.username} (self)` }, ...users.filter(item => item.role === 'customer').map(item => ({ value: item.id, label: item.username }))]));
+  if (me.role !== 'customer') fields.push(selectField('Owner', 'ownerId', users.filter(item => item.role === 'customer').map(item => ({ value: item.id, label: item.username }))));
   const form = node('form', { class: 'form-grid' }, fields, node('button', { type: 'submit' }, 'Add domain'));
   form.addEventListener('submit', async event => { event.preventDefault(); try { await api('/domains', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) }); form.reset(); showNotice('Domain accepted for provisioning.'); await domainsView(); } catch (error) { showNotice(error.message, true); } });
-  const table = domains.length ? node('div', { class: 'table-wrap' }, node('table', {}, node('thead', {}, node('tr', {}, ['Domain', 'Type', 'Status', 'SSL', 'Created'].map(label => node('th', {}, label)))), node('tbody', {}, domains.map(item => node('tr', {}, node('td', { class: 'code' }, item.name), node('td', {}, item.type), node('td', {}, badge(item.enabled ? 'Enabled' : 'Disabled', item.enabled)), node('td', {}, badge(item.ssl, item.ssl === 'active')), node('td', {}, date(item.createdAt))))))) : empty('No domains yet.');
+  const act = async (item, action) => {
+    if (action === 'delete' && !confirm(`Delete ${item.name}? Its Nginx configuration will be removed.`)) return;
+    try {
+      await api(`/domains/${item.id}${action === 'delete' ? '' : `/${action}`}`, { method: action === 'delete' ? 'DELETE' : 'POST', body: '{}' });
+      showNotice(`Domain ${action} queued.`); await domainsView();
+    } catch (error) { showNotice(error.message, true); }
+  };
+  const table = domains.length ? node('div', { class: 'table-wrap' }, node('table', {}, node('thead', {}, node('tr', {}, ['Domain', 'Type', 'Status', 'SSL', 'Created', 'Actions'].map(label => node('th', {}, label)))), node('tbody', {}, domains.map(item => {
+    const busy = ['queued', 'deleting'].includes(item.status);
+    const status = item.status || (item.enabled ? 'active' : 'disabled');
+    return node('tr', {},
+      node('td', { class: 'code' }, item.name), node('td', {}, item.type), node('td', {}, badge(status, status === 'active')),
+      node('td', {}, badge(item.ssl, item.ssl === 'active')), node('td', {}, date(item.createdAt)),
+      node('td', { class: 'actions' },
+        node('button', { class: 'ghost', type: 'button', disabled: busy ? true : null, onclick: () => act(item, item.enabled ? 'disable' : 'enable') }, item.enabled ? 'Disable' : 'Enable'),
+        node('button', { class: 'danger', type: 'button', disabled: busy ? true : null, onclick: () => act(item, 'delete') }, 'Delete')));
+  })))) : empty('No domains yet.');
   content.replaceChildren(panel('Add domain', form), node('br'), panel('Domains', table));
 }
 
