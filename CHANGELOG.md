@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Repository: added `.gitignore` and line-ending rules, documented `config/`, `packaging/`, and the cross-component test hierarchy, and corrected the public clone URL.
+- Licensing: replaced the abbreviated notice with the complete canonical AGPLv3 license text.
+
 ## 0.1.0 — 2026-09-13
 
 Phase: architecture and secure development baseline.
@@ -10,4 +15,3 @@ Phase: architecture and secure development baseline.
 - Added unit/API/security tests and complete architecture, security, deployment, installation, operations, migration, licensing, and readiness documentation.
 - Security: path/symlink/archive traversal guards, request limits, constant-time comparisons, safe process spawning, non-root public services.
 - Known breaking/production limitations: JSON development storage; incomplete provisioners; no TLS automation, terminal, mail, database manager, backup runner, full quotas, or clean-Ubuntu execution evidence.
-

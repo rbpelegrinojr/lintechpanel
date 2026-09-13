@@ -22,7 +22,7 @@ Create `A panel VPS_PUBLIC_IP` at the DNS provider and wait for resolution. Then
 
 ```bash
 sudo apt install git -y
-git clone https://github.com/OWNER/lintech-panel.git
+git clone https://github.com/rbpelegrinojr/lintechpanel.git
 cd lintech-panel
 sudo bash installer/install.sh
 ```
@@ -52,4 +52,3 @@ Confirm UFW exposes only intended ports, SSH uses keys, port 8080 binds to loopb
 ## Troubleshooting
 
 Review `/var/log/lintech-panel/install.log`, `journalctl -u lintech-api -u lintech-worker -u lintech-agent`, and `/var/log/nginx/error.log`. The installer intentionally stops when it detects another control panel, insufficient resources, the wrong OS, or invalid Nginx configuration. See `docs/TROUBLESHOOTING.md`.
-

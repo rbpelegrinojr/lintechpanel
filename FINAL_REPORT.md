@@ -77,12 +77,12 @@ Supported target: fresh Ubuntu Server 24.04 LTS x86_64. Exact evaluation flow:
 sudo apt update
 sudo apt upgrade -y
 sudo apt install git -y
-git clone https://github.com/OWNER/lintech-panel.git
+git clone https://github.com/rbpelegrinojr/lintechpanel.git
 cd lintech-panel
 sudo bash installer/install.sh
 ```
 
-Replace `OWNER` with the actual repository owner. Required public ports: 22/TCP, 80/TCP, 443/TCP. Do not expose 8080, database ports, worker, or the Unix agent socket. DNS must resolve before trusted TLS can be issued. The installer currently produces an HTTP evaluation endpoint and therefore requires manual TLS before remote credential entry.
+Required public ports: 22/TCP, 80/TCP, 443/TCP. Do not expose 8080, database ports, worker, or the Unix agent socket. DNS must resolve before trusted TLS can be issued. The installer currently produces an HTTP evaluation endpoint and therefore requires manual TLS before remote credential entry.
 
 ## 9. VPS capacity guidance
 
@@ -90,11 +90,10 @@ Minimum for evaluation or roughly 10 light accounts: 2 vCPU, 4 GB RAM, 40 GB NVM
 
 ## 10. Open-source and external validation
 
-The project is designated AGPL-3.0-only and its planned core uses open-source Node.js, Nginx, PostgreSQL, MariaDB, systemd, PHP, Python/Gunicorn, Monaco, xterm.js, restic, and Certbot. It requires no commercial control-panel, database, or IDE license. Optional VPS, domain, storage, SMTP relay, DNS/CDN, and backup services may cost money. Before redistribution, replace the abbreviated `LICENSE` notice with the complete official AGPLv3 text.
+The project includes the complete AGPL-3.0-only license text and its planned core uses open-source Node.js, Nginx, PostgreSQL, MariaDB, systemd, PHP, Python/Gunicorn, Monaco, xterm.js, restic, and Certbot. It requires no commercial control-panel, database, or IDE license. Optional VPS, domain, storage, SMTP relay, DNS/CDN, and backup services may cost money.
 
 External validation required: a disposable fresh Ubuntu 24.04 VM matrix; real DNS and Let's Encrypt; Hostinger/provider firewall and port restrictions; PostgreSQL/MariaDB grants; runtime deployments; SMTP delivery, port 25, PTR/rDNS, SPF/DKIM/DMARC, and reputation; off-host backup restore; cgroup/quota/AppArmor isolation; penetration/accessibility/load testing; update rollback and VPS migration drills.
 
 ## 11. Production-readiness rating
 
 **DEVELOPMENT READY.** The core demonstrates enforceable security patterns and runs/tests locally, but the control-panel promise depends on numerous missing service integrations and Linux validation. Advancing to beta requires PostgreSQL-backed concurrency, complete tenant/runtime provisioners, TLS, quotas, encrypted secrets, restore drills, comprehensive e2e/security tests, and successful clean-host installation evidence.
-

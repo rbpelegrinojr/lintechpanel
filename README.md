@@ -24,10 +24,9 @@ On a fresh Ubuntu 24.04 x86_64 server after DNS is configured:
 sudo apt update
 sudo apt upgrade -y
 sudo apt install git -y
-git clone https://github.com/OWNER/lintech-panel.git
+git clone https://github.com/rbpelegrinojr/lintechpanel.git
 cd lintech-panel
 sudo bash installer/install.sh
 ```
 
-Replace `OWNER` with the real repository owner. The current installer results in an HTTP development deployment; TLS issuance and production hardening are external/manual in 0.1.0. See `docs/INSTALLATION.md` and `FINAL_REPORT.md` before use.
-
+The current installer results in an HTTP development deployment; TLS issuance and production hardening are external/manual in 0.1.0. See `docs/INSTALLATION.md` and `FINAL_REPORT.md` before use.
