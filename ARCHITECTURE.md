@@ -6,7 +6,7 @@ Version 0.2.0 is a security-first core-management milestone, not a finished host
 
 MariaDB is the selected MySQL-compatible customer database. Native MySQL is omitted because co-installing it with MariaDB adds conflicts without a core capability benefit. PostgreSQL administration should use pgAdmin behind independent authentication; MariaDB administration may use phpMyAdmin. Neither GUI is installed in 0.2.0.
 
-Systemd is selected over PM2 for application supervision because it provides native cgroup v2 controls, predictable privilege boundaries, journald integration, and no global JavaScript process-manager control plane. PHP uses one generated PHP-FPM pool per site under the customer's private Linux identity and a dedicated Unix socket consumed by Nginx. Redis/RabbitMQ are deferred: durable PostgreSQL jobs are preferred to reduce exposed services. The current worker uses the locked development store.
+Systemd is selected over PM2 for application supervision because it provides native cgroup v2 controls, predictable privilege boundaries, journald integration, and no global JavaScript process-manager control plane. PHP uses one generated PHP-FPM pool per site under the customer's private Linux identity and a dedicated Unix socket consumed by Nginx. Python uses a per-application virtual environment and hardened Gunicorn unit with hosting-package-derived `MemoryMax`, `CPUQuota`, and `TasksMax`; Nginx reaches it only through a per-app Unix socket. Redis/RabbitMQ are deferred: durable PostgreSQL jobs are preferred to reduce exposed services. The current worker uses the locked development store.
 
 ## Trust boundaries
 

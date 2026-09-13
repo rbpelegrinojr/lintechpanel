@@ -82,7 +82,7 @@ test('domain lifecycle queues scoped privileged jobs and prevents overlap', asyn
   const admin = await login(f.app, 'admin', 'SecureAdminPass7');
   const reseller = await login(f.app, 'reseller', 'SecureReseller7');
   const outsider = await login(f.app, 'outside', 'SecureOutside77');
-  const plan = await f.app({ method: 'POST', pathname: '/api/packages', headers: headers(admin), body: { name: 'Domain plan', limits: { domains: 2 } } });
+  const plan = await f.app({ method: 'POST', pathname: '/api/packages', headers: headers(admin), body: { name: 'Domain plan', limits: { domains: 2, pythonApps: 1 } } });
   await f.app({ method: 'PATCH', pathname: '/api/users/outside', headers: headers(admin), body: { packageId: plan.body.id } });
 
   const created = await f.app({ method: 'POST', pathname: '/api/domains', headers: headers(outsider), body: { domain: 'site.example.com' } });
@@ -117,5 +117,15 @@ test('domain lifecycle queues scoped privileged jobs and prevents overlap', asyn
   const removed = await f.app({ method: 'DELETE', pathname: `/api/applications/${applicationRecord.id}`, headers: headers(outsider), body: {} });
   assert.equal(removed.status, 202);
   assert.equal(f.store.data.jobs.at(-1).type, 'delete_php_site');
+  f.store.data.applications = [];
+  const python = await f.app({ method: 'POST', pathname: '/api/applications', headers: headers(outsider), body: { domainId: record.id, kind: 'python', pythonVersion: '3.12', framework: 'flask' } });
+  assert.equal(python.status, 202);
+  assert.equal(python.body.startup, 'wsgi:app');
+  assert.equal(f.store.data.jobs.at(-1).type, 'create_python_app');
+  assert.equal(f.store.data.jobs.at(-1).input.memoryMb, 512);
+  const pythonRecord = f.store.data.applications.find(item => item.id === python.body.id); pythonRecord.status = 'active';
+  const stopped = await f.app({ method: 'POST', pathname: `/api/applications/${pythonRecord.id}/stop`, headers: headers(outsider), body: {} });
+  assert.equal(stopped.status, 202);
+  assert.equal(f.store.data.jobs.at(-1).input.action, 'stop');
   await fs.rm(f.dir, { recursive: true });
 });

@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { renderStaticSite, sitePaths, validateSite } from './nginx.js';
 import { phpPoolPath, renderPhpPool, renderPhpSite, validatePhpSite } from './php.js';
+import { pythonPaths, renderPythonSite, renderPythonUnit, starterSource, validatePythonApp } from './python.js';
 
 const USER = /^[a-z][a-z0-9_-]{2,31}$/;
 const ID = /^[a-z][a-z0-9_-]{2,63}$/;
@@ -11,11 +12,13 @@ const EMAIL = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9.-
 function assert(value, pattern, label) { if (typeof value !== 'string' || !pattern.test(value)) throw new Error(`invalid ${label}`); return value; }
 function run(binary, args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(binary, args, { ...options, shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const { timeoutMs = 30_000, ...spawnOptions } = options;
+    const child = spawn(binary, args, { ...spawnOptions, shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '', stderr = '';
+    const timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error(`${path.basename(binary)} timed out`)); }, timeoutMs);
     child.stdout.on('data', x => { if (stdout.length < 16_384) stdout += x; });
     child.stderr.on('data', x => { if (stderr.length < 16_384) stderr += x; });
-    child.on('error', reject); child.on('close', code => code === 0 ? resolve({ stdout }) : reject(new Error(`${path.basename(binary)} failed (${code}): ${stderr.slice(0, 1000)}`)));
+    child.on('error', error => { clearTimeout(timer); reject(error); }); child.on('close', code => { clearTimeout(timer); code === 0 ? resolve({ stdout }) : reject(new Error(`${path.basename(binary)} failed (${code}): ${stderr.slice(0, 1000)}`)); });
   });
 }
 
@@ -34,6 +37,15 @@ async function ensureManagedSymlink(target, link) {
   }
 }
 
+async function waitForUnixHttp(socketPath) {
+  let lastError;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try { await run('/usr/bin/curl', ['--fail', '--silent', '--show-error', '--max-time', '3', '--unix-socket', socketPath, 'http://localhost/'], { timeoutMs: 5_000 }); return; }
+    catch (error) { lastError = error; await new Promise(resolve => setTimeout(resolve, 500)); }
+  }
+  throw new Error(`application health check failed: ${lastError.message}`);
+}
+
 export const schemas = Object.freeze({
   create_user: args => ({ username: assert(args.username, USER, 'username') }),
   suspend_user: args => ({ username: assert(args.username, USER, 'username') }),
@@ -45,9 +57,14 @@ export const schemas = Object.freeze({
   disable_domain: args => validateSite(args),
   issue_ssl: args => args.kind === 'php'
     ? { ...validatePhpSite(args), kind: 'php', email: assert(args.email, EMAIL, 'email'), forceHttps: args.forceHttps !== false }
-    : { ...validateSite(args), kind: 'static', email: assert(args.email, EMAIL, 'email'), forceHttps: args.forceHttps !== false },
+    : args.kind === 'python'
+      ? { ...validatePythonApp(args), kind: 'python', email: assert(args.email, EMAIL, 'email'), forceHttps: args.forceHttps !== false }
+      : { ...validateSite(args), kind: 'static', email: assert(args.email, EMAIL, 'email'), forceHttps: args.forceHttps !== false },
   create_php_site: args => ({ ...validatePhpSite(args), tls: args.tls === true, forceHttps: args.forceHttps !== false }),
   delete_php_site: args => ({ ...validatePhpSite(args), tls: args.tls === true, forceHttps: args.forceHttps !== false }),
+  create_python_app: args => ({ ...validatePythonApp(args), tls: args.tls === true, forceHttps: args.forceHttps !== false, memoryMb: args.memoryMb, cpuPercent: args.cpuPercent, processes: args.processes }),
+  delete_python_app: args => ({ ...validatePythonApp(args), tls: args.tls === true, forceHttps: args.forceHttps !== false }),
+  control_python_app: args => ({ ...validatePythonApp(args), action: assert(args.action, /^(start|stop|restart)$/, 'application action') }),
   nginx_test_reload: args => ({ siteId: assert(args.siteId, ID, 'site id') })
 });
 
@@ -116,7 +133,7 @@ export async function executeOperation(operation, rawArgs, config = {}) {
     await run('/usr/bin/certbot', ['certonly', '--webroot', '--webroot-path', documentRoot, '--domain', args.domain, '--non-interactive', '--agree-tos', '--email', args.email, '--keep-until-expiring']);
     const previous = await fs.readFile(locations.available, 'utf8');
     const temporary = `${locations.available}.${process.pid}.tmp`;
-    const tlsConfiguration = args.kind === 'php' ? renderPhpSite(args, { tls: true, forceHttps: args.forceHttps }) : renderStaticSite(args, { tls: true, forceHttps: args.forceHttps });
+    const tlsConfiguration = args.kind === 'php' ? renderPhpSite(args, { tls: true, forceHttps: args.forceHttps }) : args.kind === 'python' ? renderPythonSite(args, { tls: true, forceHttps: args.forceHttps }) : renderStaticSite(args, { tls: true, forceHttps: args.forceHttps });
     await fs.writeFile(temporary, tlsConfiguration, { mode: 0o644, flag: 'wx' });
     await fs.rename(temporary, locations.available);
     try { await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']); }
@@ -175,6 +192,52 @@ export async function executeOperation(operation, rawArgs, config = {}) {
       await fs.writeFile(pool, previousPool, { mode: 0o640 });
       throw error;
     } finally { await fs.rm(temporary, { force: true }); }
+  }
+  if (operation === 'create_python_app') {
+    const locations = sitePaths(args, config.nginxRoot); const appPaths = pythonPaths(args, config.unitRoot);
+    await fs.access(locations.enabled);
+    await fs.mkdir(appPaths.root, { recursive: true, mode: 0o750 });
+    await run('/usr/bin/chown', ['-R', `${args.username}:${args.username}`, appPaths.root]);
+    try { await fs.access(path.join(appPaths.venv, 'bin', 'python')); }
+    catch { await run('/usr/sbin/runuser', ['-u', args.username, '--', '/usr/bin/python3', '-m', 'venv', appPaths.venv], { cwd: appPaths.root, timeoutMs: 120_000 }); }
+    const packages = args.framework === 'django' ? ['gunicorn', 'django'] : args.framework === 'flask' ? ['gunicorn', 'flask'] : ['gunicorn'];
+    await run('/usr/sbin/runuser', ['-u', args.username, '--', path.join(appPaths.venv, 'bin', 'pip'), 'install', '--disable-pip-version-check', '--no-cache-dir', ...packages], { cwd: appPaths.root, timeoutMs: 120_000 });
+    if (args.framework === 'django') {
+      try { await fs.access(path.join(appPaths.root, 'manage.py')); }
+      catch { await run('/usr/sbin/runuser', ['-u', args.username, '--', path.join(appPaths.venv, 'bin', 'django-admin'), 'startproject', 'lintech_project', '.'], { cwd: appPaths.root, timeoutMs: 30_000 }); }
+    } else {
+      try { await fs.writeFile(path.join(appPaths.root, 'wsgi.py'), starterSource(args.framework), { mode: 0o640, flag: 'wx' }); }
+      catch (error) { if (error.code !== 'EEXIST') throw error; }
+      await run('/usr/bin/chown', [`${args.username}:${args.username}`, path.join(appPaths.root, 'wsgi.py')]);
+    }
+    const previousSite = await fs.readFile(locations.available, 'utf8'); let previousUnit = null;
+    try { previousUnit = await fs.readFile(appPaths.unit, 'utf8'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const siteTemporary = `${locations.available}.${process.pid}.tmp`; const unitTemporary = `${appPaths.unit}.${process.pid}.tmp`;
+    try {
+      await fs.writeFile(unitTemporary, renderPythonUnit(args), { mode: 0o644, flag: 'wx' }); await fs.rename(unitTemporary, appPaths.unit);
+      await fs.writeFile(siteTemporary, renderPythonSite(args, { tls: args.tls, forceHttps: args.forceHttps }), { mode: 0o644, flag: 'wx' }); await fs.rename(siteTemporary, locations.available);
+      await run('/usr/bin/systemctl', ['daemon-reload']); await run('/usr/bin/systemctl', ['enable', '--now', appPaths.service]);
+      await waitForUnixHttp(appPaths.socket);
+      await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']);
+      return { active: true, runtime: `python-${args.pythonVersion}`, framework: args.framework };
+    } catch (error) {
+      await fs.writeFile(locations.available, previousSite, { mode: 0o644 });
+      if (previousUnit === null) { await run('/usr/bin/systemctl', ['disable', '--now', appPaths.service]).catch(() => {}); await fs.rm(appPaths.unit, { force: true }); } else await fs.writeFile(appPaths.unit, previousUnit, { mode: 0o644 });
+      await run('/usr/bin/systemctl', ['daemon-reload']).catch(() => {}); throw error;
+    } finally { await fs.rm(siteTemporary, { force: true }); await fs.rm(unitTemporary, { force: true }); }
+  }
+  if (operation === 'delete_python_app') {
+    const locations = sitePaths(args, config.nginxRoot); const appPaths = pythonPaths(args, config.unitRoot);
+    const previousSite = await fs.readFile(locations.available, 'utf8'); const previousUnit = await fs.readFile(appPaths.unit, 'utf8');
+    try {
+      await run('/usr/bin/systemctl', ['disable', '--now', appPaths.service]); await fs.rm(appPaths.unit); await run('/usr/bin/systemctl', ['daemon-reload']);
+      await fs.writeFile(locations.available, renderStaticSite(args, { tls: args.tls, forceHttps: args.forceHttps }), { mode: 0o644 });
+      await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']); return { active: false };
+    } catch (error) { await fs.writeFile(locations.available, previousSite, { mode: 0o644 }); await fs.writeFile(appPaths.unit, previousUnit, { mode: 0o644 }); await run('/usr/bin/systemctl', ['daemon-reload']).catch(() => {}); throw error; }
+  }
+  if (operation === 'control_python_app') {
+    const appPaths = pythonPaths(args, config.unitRoot); await fs.access(appPaths.unit);
+    await run('/usr/bin/systemctl', [args.action, appPaths.service]); return { status: args.action === 'stop' ? 'stopped' : 'active' };
   }
   if (operation === 'nginx_test_reload') {
     await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']); return { ok: true };

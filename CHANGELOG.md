@@ -13,6 +13,8 @@ Phase: transactional static-domain provisioning milestone.
 - Added allowlisted Certbot webroot issuance/renewal, generated TLS 1.2/1.3 configuration, optional forced HTTPS (enabled by the UI), certificate-expiration state, and an Nginx reload deployment hook for automatic renewals. Real ACME issuance for customer domains remains externally unvalidated.
 - Began Phase 3 with owner-authorized PHP application create/remove workflows, isolated per-site PHP 8.3 FPM pools, safe PHP limits, generated FastCGI/TLS configuration, framework metadata for generic PHP/Laravel/CodeIgniter, and UI/application quota integration. Composer/project deployment and real Linux execution remain partial.
 - Validation: 24 tests pass after PHP template, TLS preservation, lifecycle authorization, and deletion-order coverage.
+- Added Phase 4 Python 3.12 application provisioning for Flask, Django, and generic WSGI: per-app virtual environments, fixed Gunicorn services, Unix-socket Nginx reverse proxying, CPU/RAM/task limits, start/stop/restart/remove controls, TLS-preserving templates, and post-start HTTP health checks.
+- Validation: 26 tests pass; live pip, Gunicorn, systemd, and Nginx execution remains externally unvalidated on Ubuntu.
 
 ## 0.2.0 — 2026-09-13
 
