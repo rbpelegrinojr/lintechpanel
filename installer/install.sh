@@ -44,7 +44,7 @@ fi
 [[ $ADMIN_EMAIL == *@*.* ]] || { echo 'Invalid administrator email' >&2; exit 2; }
 [[ $ADMIN_USER =~ ^[a-z][a-z0-9_-]{2,31}$ ]] || { echo 'Invalid administrator username' >&2; exit 2; }
 
-step 2 'Installing required packages'; apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y nginx nodejs openssl ca-certificates curl git ufw fail2ban certbot
+step 2 'Installing required packages'; apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y nginx nodejs openssl ca-certificates curl git ufw fail2ban certbot php8.3-cli php8.3-fpm php8.3-common composer
 node_major=$(node -p 'Number(process.versions.node.split(".")[0])'); (( node_major >= 18 )) || { echo 'Node.js 18+ is required; install a supported Node.js LTS and retry.' >&2; exit 1; }
 step 3 'Creating service accounts and directories'; id lintech >/dev/null 2>&1 || useradd --system --home "$DATA_DIR" --shell /usr/sbin/nologin lintech; install -d -o lintech -g lintech -m 0750 "$DATA_DIR" "$DATA_DIR/customers"; install -d -o root -g lintech -m 0750 "$CONFIG_DIR" /run/lintech-panel
 step 4 'Installing application files'; mkdir -p "$APP_DIR"; cp -a "$ROOT_DIR"/. "$APP_DIR"/; chown -R root:root "$APP_DIR"; chmod -R o-w "$APP_DIR"

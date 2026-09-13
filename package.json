@@ -11,7 +11,7 @@
     "bootstrap": "node scripts/bootstrap-admin.js",
     "doctor": "node scripts/doctor.js",
     "test": "node --test",
-    "lint": "node --check backend/src/server.js && node --check backend/src/app.js && node --check backend/src/store.js && node --check agent/src/agent.js && node --check agent/src/operations.js && node --check agent/src/nginx.js && node --check worker/src/worker.js && node --check worker/src/agent-client.js && node --check scripts/bootstrap-admin.js && node --check scripts/doctor.js && node --check frontend/app.js"
+    "lint": "node --check backend/src/server.js && node --check backend/src/app.js && node --check backend/src/store.js && node --check agent/src/agent.js && node --check agent/src/operations.js && node --check agent/src/nginx.js && node --check agent/src/php.js && node --check worker/src/worker.js && node --check worker/src/agent-client.js && node --check scripts/bootstrap-admin.js && node --check scripts/doctor.js && node --check frontend/app.js"
   },
   "license": "AGPL-3.0-only"
 }

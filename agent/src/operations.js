@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { renderStaticSite, sitePaths, validateSite } from './nginx.js';
+import { phpPoolPath, renderPhpPool, renderPhpSite, validatePhpSite } from './php.js';
 
 const USER = /^[a-z][a-z0-9_-]{2,31}$/;
 const ID = /^[a-z][a-z0-9_-]{2,63}$/;
@@ -42,7 +43,11 @@ export const schemas = Object.freeze({
   delete_domain: args => validateSite(args),
   enable_domain: args => validateSite(args),
   disable_domain: args => validateSite(args),
-  issue_ssl: args => ({ ...validateSite(args), email: assert(args.email, EMAIL, 'email'), forceHttps: args.forceHttps !== false }),
+  issue_ssl: args => args.kind === 'php'
+    ? { ...validatePhpSite(args), kind: 'php', email: assert(args.email, EMAIL, 'email'), forceHttps: args.forceHttps !== false }
+    : { ...validateSite(args), kind: 'static', email: assert(args.email, EMAIL, 'email'), forceHttps: args.forceHttps !== false },
+  create_php_site: args => ({ ...validatePhpSite(args), tls: args.tls === true, forceHttps: args.forceHttps !== false }),
+  delete_php_site: args => ({ ...validatePhpSite(args), tls: args.tls === true, forceHttps: args.forceHttps !== false }),
   nginx_test_reload: args => ({ siteId: assert(args.siteId, ID, 'site id') })
 });
 
@@ -111,7 +116,8 @@ export async function executeOperation(operation, rawArgs, config = {}) {
     await run('/usr/bin/certbot', ['certonly', '--webroot', '--webroot-path', documentRoot, '--domain', args.domain, '--non-interactive', '--agree-tos', '--email', args.email, '--keep-until-expiring']);
     const previous = await fs.readFile(locations.available, 'utf8');
     const temporary = `${locations.available}.${process.pid}.tmp`;
-    await fs.writeFile(temporary, renderStaticSite(args, { tls: true, forceHttps: args.forceHttps }), { mode: 0o644, flag: 'wx' });
+    const tlsConfiguration = args.kind === 'php' ? renderPhpSite(args, { tls: true, forceHttps: args.forceHttps }) : renderStaticSite(args, { tls: true, forceHttps: args.forceHttps });
+    await fs.writeFile(temporary, tlsConfiguration, { mode: 0o644, flag: 'wx' });
     await fs.rename(temporary, locations.available);
     try { await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']); }
     catch (error) { await fs.writeFile(locations.available, previous, { mode: 0o644 }); throw error; }
@@ -120,6 +126,55 @@ export async function executeOperation(operation, rawArgs, config = {}) {
     const details = await run('/usr/bin/openssl', ['x509', '-enddate', '-noout', '-in', certificate]);
     const expiresAt = new Date(details.stdout.trim().replace(/^notAfter=/, '')).toISOString();
     return { active: true, forceHttps: args.forceHttps, expiresAt };
+  }
+  if (operation === 'create_php_site') {
+    const locations = sitePaths(args, config.nginxRoot);
+    const pool = phpPoolPath(args, config.phpRoot);
+    await fs.access(locations.enabled);
+    const siteRoot = path.join('/home', args.username, 'websites', args.domain);
+    await fs.mkdir(path.join(siteRoot, 'public'), { recursive: true, mode: 0o750 });
+    await run('/usr/bin/chown', ['-R', `${args.username}:${args.username}`, siteRoot]);
+    const previousSite = await fs.readFile(locations.available, 'utf8');
+    let previousPool = null;
+    try { previousPool = await fs.readFile(pool, 'utf8'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const poolTemporary = `${pool}.${process.pid}.tmp`;
+    const siteTemporary = `${locations.available}.${process.pid}.tmp`;
+    try {
+      await fs.writeFile(poolTemporary, renderPhpPool(args), { mode: 0o640, flag: 'wx' });
+      await fs.rename(poolTemporary, pool);
+      await run(`/usr/sbin/php-fpm${args.phpVersion}`, ['-t']);
+      await fs.writeFile(siteTemporary, renderPhpSite(args, { tls: args.tls, forceHttps: args.forceHttps }), { mode: 0o644, flag: 'wx' });
+      await fs.rename(siteTemporary, locations.available);
+      await run('/usr/sbin/nginx', ['-t']);
+      await run('/usr/bin/systemctl', ['reload', `php${args.phpVersion}-fpm`]);
+      await run('/usr/bin/systemctl', ['reload', 'nginx']);
+      return { active: true, runtime: `php-${args.phpVersion}`, framework: args.framework };
+    } catch (error) {
+      await fs.writeFile(locations.available, previousSite, { mode: 0o644 });
+      if (previousPool === null) await fs.rm(pool, { force: true }); else await fs.writeFile(pool, previousPool, { mode: 0o640 });
+      throw error;
+    } finally { await fs.rm(poolTemporary, { force: true }); await fs.rm(siteTemporary, { force: true }); }
+  }
+  if (operation === 'delete_php_site') {
+    const locations = sitePaths(args, config.nginxRoot);
+    const pool = phpPoolPath(args, config.phpRoot);
+    const previousSite = await fs.readFile(locations.available, 'utf8');
+    const previousPool = await fs.readFile(pool, 'utf8');
+    const temporary = `${locations.available}.${process.pid}.tmp`;
+    try {
+      await fs.writeFile(temporary, renderStaticSite(args, { tls: args.tls, forceHttps: args.forceHttps }), { mode: 0o644, flag: 'wx' });
+      await fs.rename(temporary, locations.available);
+      await fs.rm(pool);
+      await run(`/usr/sbin/php-fpm${args.phpVersion}`, ['-t']);
+      await run('/usr/sbin/nginx', ['-t']);
+      await run('/usr/bin/systemctl', ['reload', `php${args.phpVersion}-fpm`]);
+      await run('/usr/bin/systemctl', ['reload', 'nginx']);
+      return { active: false };
+    } catch (error) {
+      await fs.writeFile(locations.available, previousSite, { mode: 0o644 });
+      await fs.writeFile(pool, previousPool, { mode: 0o640 });
+      throw error;
+    } finally { await fs.rm(temporary, { force: true }); }
   }
   if (operation === 'nginx_test_reload') {
     await run('/usr/sbin/nginx', ['-t']); await run('/usr/bin/systemctl', ['reload', 'nginx']); return { ok: true };

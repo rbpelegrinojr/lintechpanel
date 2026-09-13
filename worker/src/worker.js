@@ -27,6 +27,8 @@ async function processOne() {
       operationResult = await callAgent(job.type, job.input);
     } else if (job.type === 'issue_ssl') {
       operationResult = await callAgent('issue_ssl', { ...job.input, email: process.env.LINTECH_ACME_EMAIL || job.input.email }, { timeoutMs: 120_000 });
+    } else if (['create_php_site', 'delete_php_site'].includes(job.type)) {
+      operationResult = await callAgent(job.type, job.input, { timeoutMs: 60_000 });
     } else {
       throw new Error('runner is unavailable in this release');
     }
@@ -52,6 +54,11 @@ async function processOne() {
       const domain = store.data.domains.find(item => item.id === job.resourceId);
       if (domain && failure) { domain.ssl = 'error'; domain.sslError = failure.message; }
       else if (domain) { domain.ssl = 'active'; domain.forceHttps = operationResult.forceHttps; domain.sslExpiresAt = operationResult.expiresAt; delete domain.sslError; }
+    } else if (job.type === 'delete_php_site' && !failure) {
+      store.data.applications = store.data.applications.filter(item => item.id !== job.resourceId);
+    } else if (['create_php_site', 'delete_php_site'].includes(job.type)) {
+      const application = store.data.applications.find(item => item.id === job.resourceId);
+      if (application) { application.status = failure ? 'error' : 'active'; application.updatedAt = new Date().toISOString(); if (failure) application.error = failure.message; else delete application.error; }
     }
     await store.save();
   });

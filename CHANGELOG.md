@@ -11,6 +11,8 @@ Phase: transactional static-domain provisioning milestone.
 - Corrected agent-socket group access in systemd and added tests for Nginx input safety, signed agent requests, domain job scoping, and concurrent state updates.
 - Validation: `npm run lint` passed; `npm test` passed 21 tests. Real privileged Nginx activation still requires disposable Ubuntu validation.
 - Added allowlisted Certbot webroot issuance/renewal, generated TLS 1.2/1.3 configuration, optional forced HTTPS (enabled by the UI), certificate-expiration state, and an Nginx reload deployment hook for automatic renewals. Real ACME issuance for customer domains remains externally unvalidated.
+- Began Phase 3 with owner-authorized PHP application create/remove workflows, isolated per-site PHP 8.3 FPM pools, safe PHP limits, generated FastCGI/TLS configuration, framework metadata for generic PHP/Laravel/CodeIgniter, and UI/application quota integration. Composer/project deployment and real Linux execution remain partial.
+- Validation: 24 tests pass after PHP template, TLS preservation, lifecycle authorization, and deletion-order coverage.
 
 ## 0.2.0 — 2026-09-13
 

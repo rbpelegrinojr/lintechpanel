@@ -105,5 +105,17 @@ test('domain lifecycle queues scoped privileged jobs and prevents overlap', asyn
   assert.equal(f.store.data.jobs.at(-1).type, 'issue_ssl');
   assert.equal(f.store.data.jobs.at(-1).input.forceHttps, true);
   assert.equal(f.store.data.jobs.at(-1).input.email, 'admin@example.com');
+  record.ssl = 'active'; record.forceHttps = true;
+  const application = await f.app({ method: 'POST', pathname: '/api/applications', headers: headers(outsider), body: { domainId: record.id, kind: 'php', phpVersion: '8.3', framework: 'laravel' } });
+  assert.equal(application.status, 202);
+  assert.equal(f.store.data.jobs.at(-1).type, 'create_php_site');
+  assert.equal(f.store.data.jobs.at(-1).input.domain, 'site.example.com');
+  assert.equal(f.store.data.jobs.at(-1).input.tls, true);
+  await assert.rejects(f.app({ method: 'POST', pathname: '/api/applications', headers: headers(reseller), body: { domainId: record.id, kind: 'php', phpVersion: '8.3', framework: 'generic' } }), /forbidden/);
+  await assert.rejects(f.app({ method: 'DELETE', pathname: `/api/domains/${record.id}`, headers: headers(outsider), body: {} }), /application first/);
+  const applicationRecord = f.store.data.applications.find(item => item.id === application.body.id); applicationRecord.status = 'active';
+  const removed = await f.app({ method: 'DELETE', pathname: `/api/applications/${applicationRecord.id}`, headers: headers(outsider), body: {} });
+  assert.equal(removed.status, 202);
+  assert.equal(f.store.data.jobs.at(-1).type, 'delete_php_site');
   await fs.rm(f.dir, { recursive: true });
 });

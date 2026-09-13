@@ -52,6 +52,7 @@ const navigation = [
   ['users', '◎', 'Users', ['super_admin', 'reseller']],
   ['packages', '◇', 'Packages', ['super_admin']],
   ['domains', '◉', 'Domains', ['super_admin', 'reseller', 'customer']],
+  ['applications', '△', 'Applications', ['super_admin', 'reseller', 'customer']],
   ['jobs', '↻', 'Jobs', ['super_admin', 'reseller', 'customer']],
   ['notifications', '◌', 'Notifications', ['super_admin', 'reseller', 'customer']],
   ['audit', '≡', 'Audit log', ['super_admin', 'reseller', 'customer']],
@@ -75,7 +76,7 @@ async function openView(id) {
 async function overview() {
   const dashboard = await api('/dashboard');
   const cards = [
-    ['Users', dashboard.counts.users], ['Domains', dashboard.counts.domains], ['Jobs', dashboard.counts.jobs],
+    ['Users', dashboard.counts.users], ['Domains', dashboard.counts.domains], ['Applications', dashboard.counts.applications], ['Jobs', dashboard.counts.jobs],
     ['Unread alerts', dashboard.counts.unreadNotifications]
   ];
   if (me.role === 'super_admin') cards[0] = ['Hosting packages', dashboard.counts.packages];
@@ -166,6 +167,20 @@ async function jobsView() {
   content.replaceChildren(panel('Queue operation', form), node('br'), panel('Job history', table));
 }
 
+async function applicationsView() {
+  const [applications, domains] = await Promise.all([api('/applications'), api('/domains')]);
+  const available = domains.filter(domain => domain.status === 'active' && !applications.some(application => application.domainId === domain.id));
+  const form = node('form', { class: 'form-grid' },
+    selectField('Domain', 'domainId', available.map(item => ({ value: item.id, label: item.name }))),
+    selectField('Application type', 'kind', [{ value: 'php', label: 'PHP' }]),
+    selectField('PHP version', 'phpVersion', [{ value: '8.3', label: 'PHP 8.3' }]),
+    selectField('Framework', 'framework', [{ value: 'generic', label: 'Generic PHP' }, { value: 'laravel', label: 'Laravel' }, { value: 'codeigniter', label: 'CodeIgniter' }]),
+    node('button', { type: 'submit', disabled: available.length ? null : true }, 'Create application'));
+  form.addEventListener('submit', async event => { event.preventDefault(); try { await api('/applications', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) }); showNotice('PHP application provisioning queued.'); await applicationsView(); } catch (error) { showNotice(error.message, true); } });
+  const table = applications.length ? node('div', { class: 'table-wrap' }, node('table', {}, node('thead', {}, node('tr', {}, ['Application', 'Runtime', 'Framework', 'Status', 'Created', 'Actions'].map(label => node('th', {}, label)))), node('tbody', {}, applications.map(item => node('tr', {}, node('td', { class: 'code' }, item.name), node('td', {}, item.runtime), node('td', {}, item.framework), node('td', {}, badge(item.status, item.status === 'active')), node('td', {}, date(item.createdAt)), node('td', { class: 'actions' }, node('button', { class: 'danger', type: 'button', disabled: ['queued', 'deleting'].includes(item.status) ? true : null, onclick: async () => { if (!confirm(`Remove the PHP application from ${item.name}? Website files will be preserved.`)) return; try { await api(`/applications/${item.id}`, { method: 'DELETE', body: '{}' }); showNotice('Application removal queued.'); await applicationsView(); } catch (error) { showNotice(error.message, true); } } }, 'Remove'))))))) : empty('No applications yet.');
+  content.replaceChildren(panel('Create PHP application', available.length ? form : empty('Create and activate an unused customer domain first.')), node('br'), panel('Applications', table));
+}
+
 async function notificationsView() {
   const items = await api('/notifications');
   const list = items.length ? node('div', { class: 'stack' }, items.map(item => node('article', { class: 'panel' }, node('div', { class: 'section-head' }, node('h2', {}, item.title), item.readAt ? badge('Read') : node('button', { class: 'ghost', onclick: async () => { await api(`/notifications/${item.id}/read`, { method: 'POST', body: '{}' }); await notificationsView(); } }, 'Mark read')), node('p', { class: 'muted' }, item.body), node('span', { class: 'muted' }, date(item.createdAt))))) : empty('No notifications.');
@@ -184,7 +199,7 @@ async function accountView() {
   content.replaceChildren(node('div', { class: 'two-column' }, panel('Account details', node('div', { class: 'stack' }, node('div', { class: 'activity' }, node('strong', {}, me.username), node('span', {}, me.email)), node('div', { class: 'activity' }, node('strong', {}, roleLabel(me.role)), node('span', {}, 'Backend-enforced role')))), panel('Change password', form)));
 }
 
-const views = { overview, users, packages: packagesView, domains: domainsView, jobs: jobsView, notifications: notificationsView, audit: auditView, account: accountView };
+const views = { overview, users, packages: packagesView, domains: domainsView, applications: applicationsView, jobs: jobsView, notifications: notificationsView, audit: auditView, account: accountView };
 
 async function enterApplication() {
   try { me = await api('/me'); auth.user = me; sessionStorage.setItem('lintech.auth', JSON.stringify(auth)); }

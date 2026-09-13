@@ -100,11 +100,12 @@ export function createApplication(store, options = {}) {
     if (method === 'GET' && pathname === '/api/dashboard') {
       const users = visibleUsers(actor);
       const domains = visibleResources(actor, store.data.domains);
+      const applications = visibleResources(actor, store.data.applications);
       const jobs = visibleResources(actor, store.data.jobs);
       const notifications = store.data.notifications.filter(item => item.ownerId === actor.id);
       const audit = store.data.audit.filter(item => actor.role === ROLES.SUPER_ADMIN || item.actorId === actor.id);
       return json(200, {
-        counts: { users: users.length, suspendedUsers: users.filter(item => item.suspended).length, packages: actor.role === ROLES.SUPER_ADMIN ? store.data.packages.length : null, domains: domains.length, jobs: jobs.length, failedJobs: jobs.filter(item => item.status === 'failed').length, unreadNotifications: notifications.filter(item => !item.readAt).length },
+        counts: { users: users.length, suspendedUsers: users.filter(item => item.suspended).length, packages: actor.role === ROLES.SUPER_ADMIN ? store.data.packages.length : null, domains: domains.length, applications: applications.length, jobs: jobs.length, failedJobs: jobs.filter(item => item.status === 'failed').length, unreadNotifications: notifications.filter(item => !item.readAt).length },
         recentActivity: audit.slice(-8).reverse(),
         recentJobs: jobs.slice(-8).reverse().map(({ input, ...safe }) => safe)
       });
@@ -251,6 +252,7 @@ export function createApplication(store, options = {}) {
       if (!record) throw new NotFoundError();
       requireOwner(actor, record);
       if (['queued', 'deleting'].includes(record.status)) throw new InputError('domain operation already in progress');
+      if (store.data.applications.some(item => item.domainId === record.id)) throw new InputError('delete the domain application first');
       const owner = store.data.users.find(item => item.id === record.ownerId);
       if (!owner) throw new NotFoundError('owner not found');
       record.status = 'deleting';
@@ -269,10 +271,47 @@ export function createApplication(store, options = {}) {
       if (!owner) throw new NotFoundError('owner not found');
       const acmeEmail = store.data.users.find(item => item.role === ROLES.SUPER_ADMIN)?.email;
       if (!acmeEmail) throw new InputError('administrator email is required for SSL issuance');
+      const application = store.data.applications.find(item => item.domainId === record.id && item.kind === 'php');
+      if (application && application.status !== 'active') throw new InputError('application provisioning must finish before issuing SSL');
       record.ssl = 'queued';
-      enqueue(record.ownerId, 'issue_ssl', { siteId: record.id, domain: record.name, username: owner.systemUsername || owner.username, email: acmeEmail, forceHttps: body.forceHttps !== false }, record.id, record.resellerId);
+      enqueue(record.ownerId, 'issue_ssl', { siteId: record.id, domain: record.name, username: owner.systemUsername || owner.username, email: acmeEmail, forceHttps: body.forceHttps !== false, ...(application ? { kind: 'php', appId: application.id, phpVersion: application.runtime.replace('php-', ''), framework: application.framework } : {}) }, record.id, record.resellerId);
       store.audit(actor.id, 'domain.ssl_requested', record.id); await store.save();
       return json(202, record);
+    }
+
+    if (method === 'GET' && pathname === '/api/applications') return json(200, visibleResources(actor, store.data.applications));
+    if (method === 'POST' && pathname === '/api/applications') {
+      if (body.kind !== 'php') throw new InputError('only PHP applications are available in this milestone');
+      const domain = store.data.domains.find(item => item.id === body.domainId);
+      if (!domain) throw new NotFoundError('domain not found');
+      requireOwner(actor, domain);
+      if (domain.status !== 'active') throw new InputError('domain must be active before creating an application');
+      if (domain.ssl === 'queued') throw new InputError('SSL provisioning must finish before creating an application');
+      if (store.data.applications.some(item => item.domainId === domain.id)) throw new InputError('domain already has an application');
+      const owner = store.data.users.find(item => item.id === domain.ownerId);
+      if (!owner || owner.role !== ROLES.CUSTOMER) throw new InputError('application owner must be a customer');
+      assertQuota(owner, 'phpSites', store.data.applications.filter(item => item.ownerId === owner.id && item.kind === 'php').length);
+      if (body.phpVersion !== '8.3') throw new InputError('unsupported PHP version');
+      if (!['generic', 'laravel', 'codeigniter'].includes(body.framework)) throw new InputError('unsupported PHP framework');
+      const application = { id: store.id('app'), ownerId: owner.id, resellerId: domain.resellerId, domainId: domain.id, name: domain.name, kind: 'php', runtime: `php-${body.phpVersion}`, framework: body.framework, status: 'queued', createdAt: timestamp(), updatedAt: timestamp() };
+      store.data.applications.push(application);
+      enqueue(owner.id, 'create_php_site', { appId: application.id, siteId: domain.id, domain: domain.name, username: owner.systemUsername || owner.username, phpVersion: body.phpVersion, framework: body.framework, tls: domain.ssl === 'active', forceHttps: domain.forceHttps !== false }, application.id, domain.resellerId);
+      store.audit(actor.id, 'application.create', application.id, 'success', { kind: 'php', framework: body.framework }); await store.save();
+      return json(202, application);
+    }
+    const applicationMatch = pathname.match(/^\/api\/applications\/([^/]+)$/);
+    if (applicationMatch && method === 'DELETE') {
+      const application = store.data.applications.find(item => item.id === applicationMatch[1]);
+      if (!application) throw new NotFoundError();
+      requireOwner(actor, application);
+      if (['queued', 'deleting'].includes(application.status)) throw new InputError('application operation already in progress');
+      const domain = store.data.domains.find(item => item.id === application.domainId);
+      const owner = store.data.users.find(item => item.id === application.ownerId);
+      if (!domain || !owner) throw new NotFoundError('application resources are incomplete');
+      application.status = 'deleting'; application.updatedAt = timestamp();
+      enqueue(owner.id, 'delete_php_site', { appId: application.id, siteId: domain.id, domain: domain.name, username: owner.systemUsername || owner.username, phpVersion: application.runtime.replace('php-', ''), framework: application.framework, tls: domain.ssl === 'active', forceHttps: domain.forceHttps !== false }, application.id, application.resellerId);
+      store.audit(actor.id, 'application.delete_requested', application.id); await store.save();
+      return json(202, application);
     }
 
     if (method === 'POST' && pathname === '/api/jobs') {

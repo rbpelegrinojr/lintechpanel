@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-const empty = () => ({ users: [], sessions: [], packages: [], domains: [], jobs: [], audit: [], notifications: [] });
+const empty = () => ({ users: [], sessions: [], packages: [], domains: [], applications: [], jobs: [], audit: [], notifications: [] });
 
 export class Store {
   constructor(file) { this.file = file; this.data = empty(); this.queue = Promise.resolve(); this.lockFile = `${file}.lock`; }
